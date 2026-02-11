@@ -1,0 +1,10 @@
+{"exploitibility":125.253204,"time_ms":591,"iteration":0}
+{"exploitibility":10.503873,"time_ms":1099,"iteration":10}
+{"exploitibility":2.9579403,"time_ms":1045,"iteration":20}
+{"exploitibility":1.3093972,"time_ms":1088,"iteration":30}
+{"exploitibility":0.69276166,"time_ms":1119,"iteration":40}
+{"exploitibility":0.45227855,"time_ms":1001,"iteration":50}
+{"exploitibility":0.35296512,"time_ms":1409,"iteration":60}
+{"exploitibility":0.2818769,"time_ms":1279,"iteration":70}
+{"exploitibility":0.22401083,"time_ms":1434,"iteration":80}
+{"exploitibility":0.18482953,"time_ms":1988,"iteration":90}

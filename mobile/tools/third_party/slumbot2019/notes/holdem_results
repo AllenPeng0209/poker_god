@@ -1,0 +1,136 @@
+Experiments on the full game of Holdem
+
+nwml2/mb1b1/tcfr
+9.2g process size
+Why so large?  Is it the buckets?  2 bytes per 2.7b river hands?
+
+-----------
+
+Redo May 2020
+nnwml1wml1/mb1b1/tcfr
+9.2gb process size
+1b in 54m
+run_approx_rgbr
+  Sample 100 rivers (33s):   Exploitability: 354.67 mbb/g
+  Sample 1000 rivers (35s):  Exploitability: 339.09 mbb/g
+  Sample 10000 rivers (60s): Exploitability: 337.25 mbb/g
+  Sample 1 turn (23s):       Exploitability: 436.73 mbb/g
+  Sample 10 turns (24s):     Exploitability: 732.67 mbb/g
+  Sample 100 turns (30s):    Exploitability: 643.39 mbb/g
+  Sample 1000 turns (81s):   Exploitability: 610.01 mbb/g
+  Sample 1 flop (34s):       Exploitability: 631.68 mbb/g
+  Sample 10 flops (91s):     Exploitability: 807.63 mbb/g
+  Sample 100 flops (13m):    Exploitability: 768.34 mbb/g
+run_approx_rgbr with resolving (cfrps/200 its/mb1b1)
+  This is a highly optimistic measure of exploitability.
+  Sample 1 river (34s): Exploitability: 1.12 mbb/g
+    0.03s/resolve
+  Sample 1 turn (80s): Exploitability: 5.11 mbb/g
+    3.16s/resolve
+  Sample 1 flop (38m): Exploitability: 9.58 mbb/g
+    376s/resolve
+
+1b-2b in 51m
+run_approx_rgbr
+  Sample 10000 rivers (59s): Exploitability: 357.87 mbb/g
+  Sample 1000 turns (78s):   Exploitability: 637.82 mbb/g
+  Sample 10 flops (99s):     Exploitability: 850.63 mbb/g
+  Sample 100 flops (13m):    Exploitability: 849.81 mbb/g
+
+Exploitability worse already at 2b.
+
+head_to_head
+1b vs. 2b
+Num sampled max street boards
+1 (29s):      Avg B outcome: -0.022527 (-11.3 mbb/g)
+10 (29s):     Avg B outcome: 0.017088 (8.5 mbb/g)
+100 (30s):    Avg B outcome: 0.023560 (11.8 mbb/g)
+1000 (39s):   Avg B outcome: 0.027836 (13.9 mbb/g)
+10000 (132s): Avg B outcome: 0.028864 (14.4 mbb/g)
+
+-----------
+
+
+1b-2b in 51m
+play (100m; 6.5m) 1b vs. 2b: Avg B outcome: 0.029203 (14.6 mbb/g) over 100000000 dup hands
+MBB confidence interval: 13.671970-15.530850
+Avg P1 outcome: 0.634859
+head_to_head (10000 boards in 2m10s):
+  Avg B outcome: 0.029400 (14.7 mbb/g)        COULD BE SLIGHTLY OFF
+  Avg P1 outcome: 0.643031 (321.5 mbb/g)
+
+2b-3b in 51m (some contention)
+head_to_head (10000 boards in 2m10s)
+  Avg B outcome: 0.014062 (7.0 mbb/g)
+  Avg P1 outcome: 0.625208 (312.6 mbb/g)
+
+
+3b-5b in 93m
+head_head 3b vs. 5b (10000 boards)
+  Avg B outcome: 0.014357 (7.2 mbb/g)
+  Avg P1 outcome: 0.626792 (313.4 mbb/g)
+
+
+5b vs. 5b; no resolving
+head_to_head, 10k boards:
+  Avg B outcome: -0.000000 (-0.0 mbb/g)
+  Avg P1 outcome: 0.626742 (313.4 mbb/g)
+
+
+5b vs. 5b; resolving in B
+
+Resolving rivers 
+Sampling 1 board:
+  Avg B outcome: 0.161127 (80.6 mbb/g)
+  Avg P1 outcome: 0.900456 (450.2 mbb/g)
+  2.0 secs spent resolving
+  Avg 0.04 secs per resolve (54 resolves)
+Sampling 10 boards:
+  Avg B outcome: 0.135999 (68.0 mbb/g)
+  Avg P1 outcome: 0.796999 (398.5 mbb/g)
+  21.5 secs spent resolving
+  Avg 0.04 secs per resolve (540 resolves)
+Sampling 100 boards (3m55s):
+  Avg B outcome: 0.100930 (50.5 mbb/g)
+  Avg P1 outcome: 0.601559 (300.8 mbb/g)
+  200.3 secs spent resolving
+  Avg 0.04 secs per resolve (5400 resolves)
+  Just a coincidence that avg B outcome and avg P1 outcome keep going down?
+
+Resolving turns
+Sampling 1 board (2m4s):
+  Avg B outcome: -0.066496 (-33.2 mbb/g)
+  Avg P1 outcome: 0.180666 (90.3 mbb/g)
+  92.6 secs spent resolving
+  Avg 5.14 secs per resolve (18 resolves)
+Sampling 10 boards (15m):
+  Avg B outcome: 0.201307 (100.7 mbb/g)
+  Avg P1 outcome: 0.752042 (376.0 mbb/g)
+  888.9 secs spent resolving
+  Avg 4.94 secs per resolve (180 resolves)
+Sampling 100 boards (167m):
+  Avg B outcome: 0.210076 (105.0 mbb/g)
+  Avg P1 outcome: 0.633117 (316.6 mbb/g)
+  8212.7 secs spent resolving
+  Avg 4.56 secs per resolve (1800 resolves)
+
+Resolving flops
+Sampling 1 board (44m)
+  Avg B outcome: -0.103338 (-51.7 mbb/g)
+  Avg P1 outcome: 0.637498 (318.7 mbb/g)
+  2582.8 secs spent resolving
+  Avg 430.47 secs (7m) per resolve (6 resolves)
+  Avg B outcome: 0.157403 (78.7 mbb/g)
+  Avg P1 outcome: 0.152862 (76.4 mbb/g)
+  2610.5 secs spent resolving
+  Avg 435.08 secs per resolve (6 resolves)
+  Avg B outcome: 0.685541 (342.8 mbb/g)
+  Avg P1 outcome: 0.497406 (248.7 mbb/g)
+  2690.0 secs spent resolving
+  Avg 448.33 secs per resolve (6 resolves)
+  Lots of variance in avg B outcome.
+Sampling 16 boards (869m)
+  Avg B outcome: 0.158041 (79.0 mbb/g)
+  Avg P1 outcome: 0.486817 (243.4 mbb/g)
+  52089.4 secs spent resolving
+  Avg 542.60 secs per resolve (96 resolves)

@@ -1,0 +1,42 @@
+Seems like aggressive reentrancy doesn't hurt much, at least as measured by head-to-head.
+
+Boosting seems to lead to more reasonable strategies at nodes that are rarely visited by
+normal CFR.
+
+Unsafe resolved system outperforms combined head-to-head.  Both when measuring against
+each other, and when measuring each against the base.  But the combined system has lower
+exploitability.  It might be that the unsafe system has "overfit" to the base abstraction.
+Still holds when comparing head-to-head to a system solved to a low exploitability with no
+abstraction.
+
+Boosting doesn't seem to improve resolved results (heads-up).
+
+Char quantizing river, short quantizing turn, short quantizing flop seems to work.
+
+Not much difference in exploitability after 200 iterations for ms3f1t1r1h5, ms3f1t1r1h6,
+ms3f1t1r1h7, ms3f1t1r1h8, ms3f1t1r9.  Suggests you can do experiments with small decks and get
+exploitability numbers that are pretty good approximations of what you'd see for the full game of
+interest.
+
+New model of multithreading is superior to old model.  But for solve_all_subgames it's still
+better to do the multithreading in solve_all_subgames and not inside VCFR.  Need to preserve
+both methods, I guess.  Or, if we don't care about evaluating the new method, we could just
+keep the multithreading in solve_all_subgames.
+
+Seems like it's better to solve an entire turn subgame than to do nested resolves of subgames
+rooted at street-internal nodes.  Suggests we should take backup approach.
+
+If resolving turns, the number of buckets on the river in the base doesn't matter that much.
+
+Big wins the earlier the street you can resolve at.
+
+Reentrant resolving seems like a good idea.
+
+Reentrant system (with large card abstraction) outperforms non-reentrant system (with small
+card abstraction) on a rich betting abstraction, holding the size of the strategy fixed.
+See may2021.
+
+Turn resolving seems to be a substantial improvement over river resolving.  See
+resolving_2021.
+
+Approx RGBR doesn't do a good job on resolved systems (lower bound is too low).

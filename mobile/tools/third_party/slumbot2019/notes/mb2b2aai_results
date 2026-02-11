@@ -1,0 +1,28 @@
+holdem5/mb2b2aai
+nhs3
+
+tcfr
+1b in 121m:   Exploitability: 1609.67 mbb/g
+1b-8b in 619m 
+8b:           Exploitability: 1578.35 mbb/g
+
+RGBR calculation takes 3.5m 8-threaded
+
+play
+1b vs. 8b: Avg B outcome: 0.131965 (66.0 mbb/g) over 100000000 dup hands
+7b vs. 8b: Avg B outcome: 0.007089 (3.5 mbb/g) over 100000000 dup hands
+
+Not possible to resolve all river subgames.
+
+Redo with head_to_head
+8b vs. 8b with river subgame resolving
+Sample 1 board (37s):
+  Avg B outcome: 0.117187 (58.6 mbb/g)
+  Avg P1 outcome: -0.215330 (-107.7 mbb/g)
+  22.3 secs spent resolving
+  Avg 0.01 secs per resolve (2546 resolves)
+Sample 10 boards (5m8s):
+  Avg B outcome: 0.149967 (75.0 mbb/g)
+  Avg P1 outcome: 0.093787 (46.9 mbb/g)
+  303.4 secs spent resolving
+  Avg 0.01 secs per resolve (25460 resolves)

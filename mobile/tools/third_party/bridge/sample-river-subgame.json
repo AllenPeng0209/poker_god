@@ -1,0 +1,8 @@
+{
+  "board": ["Ks", "Th", "7s", "4d", "2s"],
+  "pot": 1000,
+  "stack": 9500,
+  "bet_sizes": [0.5, 1.0],
+  "include_all_in": true,
+  "max_raises": 4
+}

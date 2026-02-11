@@ -1,0 +1,67 @@
+[
+  {
+    "heroCards": [
+      { "rank": "A", "suit": "s", "code": "As" },
+      { "rank": "Q", "suit": "s", "code": "Qs" }
+    ],
+    "board": [
+      { "rank": "K", "suit": "s", "code": "Ks" },
+      { "rank": "T", "suit": "h", "code": "Th" },
+      { "rank": "7", "suit": "s", "code": "7s" },
+      { "rank": "4", "suit": "d", "code": "4d" },
+      { "rank": "2", "suit": "s", "code": "2s" }
+    ],
+    "heroPlayerId": "hero-btn",
+    "focusVillainId": "ai-bb",
+    "buttonPosition": "BTN",
+    "bigBlind": 2,
+    "position": {
+      "hero": "BTN",
+      "villain": "BB",
+      "heroInPositionPostflop": true
+    },
+    "players": [
+      {
+        "id": "hero-btn",
+        "name": "Hero",
+        "position": "BTN",
+        "startingStack": 1000,
+        "stack": 848
+      },
+      {
+        "id": "ai-sb",
+        "name": "SB",
+        "position": "SB",
+        "startingStack": 1000,
+        "stack": 998
+      },
+      {
+        "id": "ai-bb",
+        "name": "BB",
+        "position": "BB",
+        "startingStack": 1000,
+        "stack": 848
+      }
+    ],
+    "history": [
+      { "actor": "villain", "actorId": "ai-sb", "action": "raise", "amount": 1, "street": "preflop", "forcedBlind": "sb" },
+      { "actor": "villain", "actorId": "ai-bb", "action": "raise", "amount": 2, "street": "preflop", "forcedBlind": "bb" },
+      { "actor": "hero", "actorId": "hero-btn", "action": "call", "amount": 2, "street": "preflop" },
+      { "actor": "villain", "actorId": "ai-sb", "action": "call", "amount": 1, "street": "preflop" },
+      { "actor": "table", "action": "check", "amount": 0, "street": "flop" },
+      { "actor": "villain", "actorId": "ai-sb", "action": "check", "amount": 0, "street": "flop" },
+      { "actor": "villain", "actorId": "ai-bb", "action": "check", "amount": 0, "street": "flop" },
+      { "actor": "hero", "actorId": "hero-btn", "action": "check", "amount": 0, "street": "flop" },
+      { "actor": "table", "action": "check", "amount": 0, "street": "turn" },
+      { "actor": "villain", "actorId": "ai-sb", "action": "check", "amount": 0, "street": "turn" },
+      { "actor": "villain", "actorId": "ai-bb", "action": "raise", "amount": 50, "street": "turn" },
+      { "actor": "hero", "actorId": "hero-btn", "action": "call", "amount": 50, "street": "turn" },
+      { "actor": "villain", "actorId": "ai-sb", "action": "call", "amount": 50, "street": "turn" },
+      { "actor": "table", "action": "check", "amount": 0, "street": "river" },
+      { "actor": "villain", "actorId": "ai-sb", "action": "check", "amount": 0, "street": "river" },
+      { "actor": "villain", "actorId": "ai-bb", "action": "raise", "amount": 100, "street": "river" },
+      { "actor": "hero", "actorId": "hero-btn", "action": "call", "amount": 100, "street": "river" },
+      { "actor": "villain", "actorId": "ai-sb", "action": "fold", "amount": 0, "street": "river" }
+    ]
+  }
+]
