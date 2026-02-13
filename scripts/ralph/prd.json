@@ -1,0 +1,189 @@
+{
+  "project": "poker_god_web",
+  "branchName": "ralph/gtowizard-web-m1-closed-loop",
+  "description": "M1 learning loop for GTOWizard-like web: Study -> Practice -> Analyze -> Reports with AI Coach actions",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "建立 M1 页面与路由骨架",
+      "description": "As a learner, I want a clear M1 navigation skeleton so that I can move between Study/Practice/Analyze/Reports quickly.",
+      "acceptanceCriteria": [
+        "Expose routes: /app/study, /app/practice, /app/analyze, /app/reports, /app/ai-coach/history",
+        "Top navigation highlights the active route correctly",
+        "Unimplemented modules render explicit placeholder states with next-step entry",
+        "Typecheck/lint passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Study Spot 列表与过滤器",
+      "description": "As a learner, I want to filter spots by format/position/stack so that I can quickly find relevant study scenarios.",
+      "acceptanceCriteria": [
+        "Provide spot list schema including format, position, stack_bb, and street",
+        "Support Format, Position, and Stack filters in Study page",
+        "Update list and total count immediately when filters change",
+        "Typecheck/lint passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Study 节点详情与视图切换",
+      "description": "As a learner, I want Strategy/Ranges/Breakdown views so that I can understand both frequencies and EV context.",
+      "acceptanceCriteria": [
+        "Support Strategy, Ranges, and Breakdown tabs in node detail",
+        "Render at least one structured metric in each tab",
+        "Keep UI stable without blank flashes when switching nodes",
+        "Typecheck/lint passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Drill 数据模型与 CRUD",
+      "description": "As a developer, I want a drill domain model and CRUD APIs so that study/analyze/coach can reuse the same training object.",
+      "acceptanceCriteria": [
+        "Define drill and drill_items core fields with API contract",
+        "Provide create/read/delete(or archive) operations for drills",
+        "Support source_type values: study, analyze, coach, manual",
+        "Typecheck/lint passes",
+        "Tests pass"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Study 一键创建 Drill",
+      "description": "As a learner, I want to create a drill from the current node so that I can immediately convert theory into practice.",
+      "acceptanceCriteria": [
+        "Provide a Create Drill action in study node detail",
+        "Call trainer.create_drill (or equivalent API) and return drill id",
+        "Show success state with clickable navigation to Practice",
+        "Show explicit error and retry entry on failure",
+        "Typecheck/lint passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Practice 会话生命周期与评分接口",
+      "description": "As a learner, I want session start/submit/finish APIs so that my training quality can be measured consistently.",
+      "acceptanceCriteria": [
+        "Implement start session, submit answer, and finish session endpoints",
+        "Return aggregated metrics including ev_loss, frequency_gap, and decision_time_ms",
+        "Ensure answer submissions are traceable in sequence and protected against duplicate submissions",
+        "Typecheck/lint passes",
+        "Tests pass"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Practice 训练题面与即时反馈",
+      "description": "As a learner, I want immediate per-hand feedback so that I can correct mistakes while training.",
+      "acceptanceCriteria": [
+        "Render action choices and current context in practice question card",
+        "Show per-question feedback after submit",
+        "Show session summary card with at least three metrics on completion",
+        "Typecheck/lint passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "HH 上传与解析任务状态",
+      "description": "As a learner, I want to upload hand histories and see parsing status so that I know when analysis is ready.",
+      "acceptanceCriteria": [
+        "Provide upload flow with uploaded/parsing/parsed/failed states",
+        "Allow progress query and return explicit failure reason",
+        "Support a minimum single-file happy path in M1",
+        "Typecheck/lint passes",
+        "Tests pass"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Analyze 列表与 EV Loss 排序",
+      "description": "As a learner, I want hands sorted by EV loss so that I can fix the most expensive mistakes first.",
+      "acceptanceCriteria": [
+        "Show analyze list with position, street, ev_loss, and error labels",
+        "Sort by ev_loss descending by default",
+        "Support at least one filter dimension (position or label)",
+        "Typecheck/lint passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "AI Coach 统一侧栏与输出协议",
+      "description": "As a learner, I want a consistent AI coach panel so that I always get actionable and evidence-based guidance.",
+      "acceptanceCriteria": [
+        "AI Coach panel can open in Study, Practice, Analyze, and Reports",
+        "Every answer includes five sections: 结论, 依据数据, 行动建议, 风险提示, 置信度",
+        "Return explicit evidence-insufficient response when context is missing",
+        "Typecheck/lint passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "AI Coach 动作能力（Create Drill / Create Plan）",
+      "description": "As a learner, I want AI coach actions to produce concrete artifacts so that advice turns into execution.",
+      "acceptanceCriteria": [
+        "Support create_drill and create_plan actions",
+        "Require secondary confirmation for costly or destructive actions",
+        "Persist action audit logs with trigger message linkage",
+        "Typecheck/lint passes",
+        "Tests pass"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "Reports 漏洞摘要与闭环埋点",
+      "description": "As a product team, I want leakage summaries and funnel events so that we can measure learning-loop effectiveness.",
+      "acceptanceCriteria": [
+        "Show top leak items sorted by impact in Reports",
+        "Display sample size and small-sample warning per item",
+        "Track events: study_node_opened, drill_started, drill_completed, hand_uploaded, report_opened",
+        "Event payload includes user_id, session_id, module, timestamp, and request_id",
+        "Typecheck/lint passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}

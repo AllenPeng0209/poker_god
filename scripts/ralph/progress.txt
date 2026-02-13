@@ -1,0 +1,31 @@
+# Ralph Progress Log
+Started: Fri Feb 13 13:13:07 CST 2026
+## Codebase Patterns
+- `apps/web/src/components/shell/AppShell.tsx` owns top nav + drawer source of truth via shared `NAV_ITEMS`; route highlights derive from `pathname` prefix checks.
+- `apps/web/src/components/module/ModuleView.tsx` is the shared unimplemented-module scaffold; pass `actionSlot` to provide a concrete next-step entry in the learning loop.
+---
+## 2026-02-13 13:29:11 CST - US-001
+- What was implemented
+  - Aligned M1 navigation skeleton to `Study`, `Practice`, `Analyze`, `Reports`, and `AI Coach` routes.
+  - Updated `/app` index redirect to `/app/study`.
+  - Made module placeholder state explicit and added loop-forward next-step links on all required M1 pages.
+- Files changed
+  - `apps/web/src/components/shell/AppShell.tsx`
+  - `apps/web/src/app/app/page.tsx`
+  - `apps/web/src/components/module/ModuleView.tsx`
+  - `apps/web/src/app/globals.css`
+  - `apps/web/src/app/app/study/page.tsx`
+  - `apps/web/src/app/app/practice/page.tsx`
+  - `apps/web/src/app/app/analyze/page.tsx`
+  - `apps/web/src/app/app/reports/page.tsx`
+  - `apps/web/src/app/app/ai-coach/history/page.tsx`
+  - `scripts/ralph/prd.json`
+- Learnings for future iterations:
+  - Patterns discovered
+    - Keep route labels, header title resolution, and active highlighting bound to one shared nav list to avoid route drift.
+    - Use `ModuleView` `actionSlot` for cross-route continuation CTAs instead of custom page-local placeholder implementations.
+  - Gotchas encountered
+    - Browser verification tooling (`dev-browser` skill) is unavailable in this environment, so manual browser verification is required.
+  - Useful context
+    - `@poker-god/web` currently exposes `typecheck` and `build`; there is no dedicated `lint` script yet.
+---
