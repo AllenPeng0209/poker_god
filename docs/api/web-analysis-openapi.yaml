@@ -1,0 +1,656 @@
+openapi: 3.0.3
+info:
+  title: ZENGTO Web Analysis API
+  version: 0.1.0
+  description: |
+    API contract for ZENGTO web waitlist and solver analysis workflows.
+servers:
+  - url: https://api.zengto.com
+    description: Production
+  - url: https://staging-api.zengto.com
+    description: Staging
+tags:
+  - name: Waitlist
+  - name: Analysis
+  - name: Settings
+  - name: Chat
+paths:
+  /web/waitlist:
+    post:
+      tags:
+        - Waitlist
+      summary: Submit waitlist lead
+      operationId: submitWaitlistLead
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WaitlistSubmitRequest'
+            examples:
+              default:
+                value:
+                  email: user@example.com
+                  source: direct
+                  locale: zh-CN
+      responses:
+        '201':
+          description: Waitlist lead accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WaitlistSubmitResponse'
+        '409':
+          description: Duplicate lead
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limited
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /analysis/jobs:
+    post:
+      tags:
+        - Analysis
+      summary: Create analysis job
+      operationId: createAnalysisJob
+      security:
+        - optionalSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnalysisJobCreateRequest'
+            examples:
+              default:
+                value:
+                  prompt: "FT 6-max, hero BTN Kd5d, 15bb eff, open vs BB defend, flop Js5c3h, what is best line?"
+                  locale: zh-CN
+                  client_session_id: 44f69d7c-1e72-4e6f-9187-2bdad79a4ecf
+                  settings:
+                    reasoning_depth: standard
+                    output_language: zh-CN
+      responses:
+        '201':
+          description: Job created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalysisJobCreateResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limited
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    get:
+      tags:
+        - Analysis
+      summary: Get analysis history
+      operationId: listAnalysisHistory
+      security:
+        - optionalSession: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/AnalysisJobStatus'
+      responses:
+        '200':
+          description: Paged list of analysis jobs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalysisHistoryResponse'
+
+  /analysis/jobs/{jobId}:
+    get:
+      tags:
+        - Analysis
+      summary: Get analysis job detail
+      operationId: getAnalysisJob
+      security:
+        - optionalSession: []
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Job detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalysisJobDetailResponse'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /analysis/jobs/{jobId}/retry:
+    post:
+      tags:
+        - Analysis
+      summary: Retry a failed analysis job
+      operationId: retryAnalysisJob
+      security:
+        - optionalSession: []
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '202':
+          description: Retry accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RetryResponse'
+        '409':
+          description: Job not retryable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /analysis/settings:
+    get:
+      tags:
+        - Settings
+      summary: Get user/session analysis settings
+      operationId: getAnalysisSettings
+      security:
+        - optionalSession: []
+      responses:
+        '200':
+          description: Current settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalysisSettingsResponse'
+
+  /api/zen/chat:
+    post:
+      tags:
+        - Chat
+      summary: Send message to ZEN Chat
+      operationId: sendZenChat
+      security:
+        - optionalSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ZenChatRequest'
+      responses:
+        '200':
+          description: Chat response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ZenChatResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limited
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    put:
+      tags:
+        - Settings
+      summary: Update user/session analysis settings
+      operationId: updateAnalysisSettings
+      security:
+        - optionalSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnalysisSettingsUpdateRequest'
+      responses:
+        '200':
+          description: Updated settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalysisSettingsResponse'
+
+components:
+  securitySchemes:
+    optionalSession:
+      type: apiKey
+      in: header
+      name: X-Session-Id
+
+  schemas:
+    WaitlistSubmitRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        source:
+          type: string
+          maxLength: 64
+        locale:
+          type: string
+          enum: [zh-CN, en-US]
+
+    WaitlistSubmitResponse:
+      type: object
+      required: [lead_id, email, status, created_at]
+      properties:
+        lead_id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        status:
+          type: string
+          enum: [accepted, duplicate]
+        created_at:
+          type: string
+          format: date-time
+
+    AnalysisJobCreateRequest:
+      type: object
+      required: [prompt, client_session_id]
+      properties:
+        prompt:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        locale:
+          type: string
+          enum: [zh-CN, en-US]
+          default: zh-CN
+        client_session_id:
+          type: string
+          format: uuid
+        context:
+          $ref: '#/components/schemas/HandContext'
+        settings:
+          $ref: '#/components/schemas/AnalysisSettings'
+
+    AnalysisJobCreateResponse:
+      type: object
+      required: [job]
+      properties:
+        job:
+          $ref: '#/components/schemas/AnalysisJob'
+
+    AnalysisHistoryResponse:
+      type: object
+      required: [items, has_more]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AnalysisJob'
+        next_cursor:
+          type: string
+          nullable: true
+        has_more:
+          type: boolean
+
+    AnalysisJobDetailResponse:
+      type: object
+      required: [job]
+      properties:
+        job:
+          $ref: '#/components/schemas/AnalysisJobDetail'
+
+    RetryResponse:
+      type: object
+      required: [job_id, status]
+      properties:
+        job_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [queued]
+
+    AnalysisJob:
+      type: object
+      required:
+        - job_id
+        - prompt
+        - status
+        - created_at
+        - updated_at
+      properties:
+        job_id:
+          type: string
+          format: uuid
+        prompt:
+          type: string
+        status:
+          $ref: '#/components/schemas/AnalysisJobStatus'
+        status_reason:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    AnalysisJobDetail:
+      allOf:
+        - $ref: '#/components/schemas/AnalysisJob'
+        - type: object
+          properties:
+            parsed_context:
+              $ref: '#/components/schemas/HandContext'
+            progress:
+              $ref: '#/components/schemas/AnalysisProgress'
+            result:
+              $ref: '#/components/schemas/AnalysisResult'
+            settings:
+              $ref: '#/components/schemas/AnalysisSettings'
+
+    AnalysisProgress:
+      type: object
+      required: [steps]
+      properties:
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProgressStep'
+
+    ProgressStep:
+      type: object
+      required: [name, status]
+      properties:
+        name:
+          type: string
+          enum: [parse_input, build_ranges, solve, generate_explanation]
+        status:
+          type: string
+          enum: [pending, active, done, failed]
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        finished_at:
+          type: string
+          format: date-time
+          nullable: true
+        detail:
+          type: string
+          nullable: true
+
+    AnalysisResult:
+      type: object
+      required:
+        - recommended_action
+        - confidence
+        - reasoning_summary
+      properties:
+        recommended_action:
+          $ref: '#/components/schemas/RecommendedAction'
+        alternatives:
+          type: array
+          items:
+            $ref: '#/components/schemas/ActionAlternative'
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        ev_delta:
+          type: number
+          description: Expected value delta versus second-best action
+        reasoning_summary:
+          type: array
+          minItems: 1
+          maxItems: 8
+          items:
+            type: string
+        visual_payload:
+          type: object
+          additionalProperties: true
+          description: chart data payload for frequency/EV graph
+        latency_ms:
+          type: integer
+          minimum: 0
+
+    RecommendedAction:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum: [fold, call, raise]
+        size:
+          type: number
+          nullable: true
+          description: Raise size in BB when action=raise
+
+    ActionAlternative:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum: [fold, call, raise]
+        size:
+          type: number
+          nullable: true
+        frequency:
+          type: number
+          minimum: 0
+          maximum: 1
+        ev:
+          type: number
+
+    HandContext:
+      type: object
+      properties:
+        format:
+          type: string
+          enum: [cash, mtt, sng]
+        players:
+          type: integer
+          minimum: 2
+          maximum: 10
+        hero_position:
+          type: string
+          enum: [utg, hj, co, btn, sb, bb]
+        villain_position:
+          type: string
+          enum: [utg, hj, co, btn, sb, bb]
+        effective_stack_bb:
+          type: number
+          minimum: 0
+        board:
+          type: string
+          example: Js5c3h
+        street:
+          type: string
+          enum: [preflop, flop, turn, river]
+        pot_bb:
+          type: number
+          minimum: 0
+        action_history:
+          type: string
+
+    AnalysisSettings:
+      type: object
+      properties:
+        output_language:
+          type: string
+          enum: [zh-CN, en-US]
+        reasoning_depth:
+          type: string
+          enum: [brief, standard, deep]
+        include_alternatives:
+          type: boolean
+        include_visuals:
+          type: boolean
+
+    AnalysisSettingsUpdateRequest:
+      type: object
+      properties:
+        output_language:
+          type: string
+          enum: [zh-CN, en-US]
+        reasoning_depth:
+          type: string
+          enum: [brief, standard, deep]
+        include_alternatives:
+          type: boolean
+        include_visuals:
+          type: boolean
+      additionalProperties: false
+
+    AnalysisSettingsResponse:
+      type: object
+      required: [settings, updated_at]
+      properties:
+        settings:
+          $ref: '#/components/schemas/AnalysisSettings'
+        updated_at:
+          type: string
+          format: date-time
+
+    ZenChatMessage:
+      type: object
+      required: [role, content]
+      properties:
+        role:
+          type: string
+          enum: [user, assistant]
+        content:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    ZenChatRequest:
+      type: object
+      required: [sessionId, message]
+      properties:
+        sessionId:
+          type: string
+          minLength: 1
+          maxLength: 128
+        message:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        locale:
+          type: string
+          enum: [zh-CN, en-US]
+        history:
+          type: array
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/ZenChatMessage'
+        context:
+          type: object
+          properties:
+            source:
+              type: string
+            analysisJobId:
+              type: string
+          additionalProperties: false
+
+    ZenChatResponse:
+      type: object
+      required: [sessionId, reply, suggestions, provider, createdAt]
+      properties:
+        sessionId:
+          type: string
+        reply:
+          type: string
+        suggestions:
+          type: array
+          items:
+            type: string
+        provider:
+          type: string
+          enum: [heuristic, openai, qwen, fallback]
+        createdAt:
+          type: string
+          format: date-time
+
+    AnalysisJobStatus:
+      type: string
+      enum:
+        - queued
+        - processing
+        - success
+        - failed_retryable
+        - failed_fatal
+
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          example: invalid_prompt
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+          nullable: true
+        request_id:
+          type: string
+          nullable: true

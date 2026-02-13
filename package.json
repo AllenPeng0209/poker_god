@@ -1,0 +1,18 @@
+{
+  "name": "poker-god",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": [
+    "apps/*",
+    "services/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:mobile": "npm --workspace @poker-god/mobile run start",
+    "dev:web": "npm --workspace @poker-god/web run dev",
+    "dev:api": "npm --workspace @poker-god/api run dev",
+    "build:mobile": "npm --workspace @poker-god/mobile run build",
+    "build:web": "npm --workspace @poker-god/web run build",
+    "build:api": "npm --workspace @poker-god/api run build"
+  }
+}

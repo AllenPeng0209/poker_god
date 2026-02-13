@@ -1,0 +1,24 @@
+{
+  "name": "@poker-god/domain-poker",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./data/zones": "./src/data/zones.ts",
+    "./engine/analysis": "./src/engine/analysis.ts",
+    "./engine/cards": "./src/engine/cards.ts",
+    "./engine/game": "./src/engine/game.ts",
+    "./engine/heroStats": "./src/engine/heroStats.ts",
+    "./engine/insights": "./src/engine/insights.ts",
+    "./engine/position": "./src/engine/position.ts",
+    "./engine/progression": "./src/engine/progression.ts",
+    "./engine/qwenCoach": "./src/engine/qwenCoach.ts",
+    "./engine/trashTalk": "./src/engine/trashTalk.ts"
+  },
+  "dependencies": {
+    "@poker-god/contracts": "1.0.0",
+    "@poker-god/solver-core": "1.0.0"
+  }
+}

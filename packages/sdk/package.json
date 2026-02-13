@@ -1,0 +1,13 @@
+{
+  "name": "@poker-god/sdk",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@poker-god/contracts": "1.0.0"
+  }
+}
