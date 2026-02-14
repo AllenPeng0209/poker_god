@@ -1,49 +1,45 @@
+'use client';
+
 import Link from 'next/link';
 
+import { useI18n } from '@/components/i18n/I18nProvider';
 import { InquiryComposer } from '@/components/landing/InquiryComposer';
 
-const LINKS = [
-  'Study Hub',
-  'Solver Lab',
-  'Trainer',
-  'Hand Analyzer',
-  'Leak Reports',
-  'Arena'
-] as const;
-
 export function LandingShell() {
+  const { t, list } = useI18n();
+
   return (
     <main className="landing-grid">
-      <aside className="landing-side-nav" aria-label="primary">
+      <aside className="landing-side-nav" aria-label={t('landing.sideAria')}>
         <div>
-          <p className="brand-mark">ZENGTO</p>
-          <p className="brand-subtitle">Strategy OS for poker grinders</p>
+          <p className="brand-mark">{t('landing.title')}</p>
+          <p className="brand-subtitle">{t('landing.subtitle')}</p>
         </div>
         <nav>
           <ul>
-            {LINKS.map((link) => (
+            {list('landing.links').map((link) => (
               <li key={link}>{link}</li>
             ))}
           </ul>
         </nav>
         <Link href="/app/study" className="launch-link">
-          进入产品骨架
+          {t('landing.launch')}
         </Link>
       </aside>
 
       <InquiryComposer />
 
-      <section className="landing-right-panel" aria-label="announcements">
-        <h2>Build Notes</h2>
+      <section className="landing-right-panel" aria-label={t('landing.rightAria')}>
+        <h2>{t('landing.buildNotes')}</h2>
         <ul>
-          <li>统一 Study / Practice / Analyze 闭环</li>
-          <li>每个模块支持 AI Coach 右侧抽屉</li>
-          <li>支持 Solver 任务队列和结果回跳训练</li>
+          {list('landing.notes').map((note) => (
+            <li key={note}>{note}</li>
+          ))}
         </ul>
 
         <div className="status-block">
-          <span>Web Skeleton</span>
-          <strong>Online</strong>
+          <span>{t('landing.webSkeleton')}</span>
+          <strong>{t('landing.online')}</strong>
         </div>
       </section>
     </main>

@@ -1,30 +1,27 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-
-const EXAMPLE_QUESTIONS = [
-  'CO 2.5bb open, BB defend, flop K♣7♦2♠，100bb 应该怎么构建 c-bet 频率？',
-  'BTN vs SB 3-bet pot，turn 配对后如何平衡大尺寸下注？',
-  '25bb MTT，HJ open 被 BTN 3-bet，AJo 是否应该混合 4-bet bluff？'
-] as const;
+import { useI18n } from '@/components/i18n/I18nProvider';
 
 const MAX_LENGTH = 2000;
 
 export function InquiryComposer() {
-  const [value, setValue] = useState<string>(EXAMPLE_QUESTIONS[0]);
+  const { t, list } = useI18n();
+  const examples = list('landing.composer.examples');
+  const [value, setValue] = useState<string>(examples[0] ?? '');
   const [activeExample, setActiveExample] = useState(0);
 
   const remaining = useMemo(() => MAX_LENGTH - value.length, [value.length]);
 
   return (
-    <section className="landing-composer" aria-label="solution composer">
+    <section className="landing-composer" aria-label={t('landing.composer.aria')}>
       <header className="landing-composer__header">
-        <p className="landing-eyebrow">Real-time Solver Engine</p>
-        <h1>COMING SOON</h1>
+        <p className="landing-eyebrow">{t('landing.composer.eyebrow')}</p>
+        <h1>{t('landing.composer.title')}</h1>
       </header>
 
       <label className="landing-label" htmlFor="prompt-input">
-        你想先研究哪个 Spot？
+        {t('landing.composer.label')}
       </label>
       <textarea
         id="prompt-input"
@@ -33,20 +30,20 @@ export function InquiryComposer() {
         onChange={(event) => {
           setValue(event.target.value);
         }}
-        aria-label="Hand question input"
+        aria-label={t('landing.composer.inputAria')}
       />
 
       <footer className="landing-composer__footer">
         <span className={remaining <= 120 ? 'text-warning' : 'text-muted'}>
-          剩余 {remaining} 字
+          {t('landing.composer.remaining', { count: remaining.toString() })}
         </span>
         <button type="button" className="ghost-button">
-          保存为草稿
+          {t('landing.composer.saveDraft')}
         </button>
       </footer>
 
-      <div className="landing-examples" aria-label="example prompts">
-        {EXAMPLE_QUESTIONS.map((question, index) => (
+      <div className="landing-examples" aria-label={t('landing.composer.aria')}>
+        {examples.map((question, index) => (
           <button
             key={question}
             type="button"
@@ -56,17 +53,17 @@ export function InquiryComposer() {
               setValue(question);
             }}
           >
-            示例 {index + 1}
+            {t('landing.composer.example', { index: (index + 1).toString() })}
           </button>
         ))}
       </div>
 
       <div className="landing-actions">
         <button type="button" className="primary-button">
-          成为首批内测玩家
+          {t('landing.composer.joinBeta')}
         </button>
         <button type="button" className="secondary-button">
-          查看产品文档
+          {t('landing.composer.docs')}
         </button>
       </div>
     </section>

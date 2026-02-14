@@ -4,7 +4,7 @@ import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
 import * as Speech from 'expo-speech';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, DimensionValue, Easing, GestureResponderEvent, LayoutChangeEvent, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { Animated, DimensionValue, Easing, GestureResponderEvent, LayoutChangeEvent, Platform, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { leakLabels, trainingZones } from './src/data/zones';
 import { cardToDisplay } from './src/engine/cards';
 import { analyzeCurrentSpot, applyHeroAction, createNewHand } from './src/engine/game';
@@ -29,6 +29,8 @@ type CoachBenchmarkRange = { min: number; max: number };
 type CoachBenchmarkVerdictTone = 'pending' | 'inRange' | 'high' | 'low';
 type TrainingMode = 'career' | 'practice';
 type AppLanguage = 'zh-TW' | 'zh-CN' | 'en-US';
+type WebEntryMode = 'default' | 'practice';
+type WebEntryConfig = { mode: WebEntryMode; embed: boolean; language: AppLanguage | null };
 
 type Seat = { id: string; pos: TablePosition; role: SeatRole; ai?: AiProfile };
 type SeatVisual = { cardsDealt: number; inHand: boolean; folded: boolean; lastAction: string };
@@ -778,6 +780,30 @@ function normalizeAppLanguage(language: AppLanguage | string | undefined): AppLa
   return 'zh-TW';
 }
 
+function parseWebEntryLanguage(raw: string | null): AppLanguage | null {
+  if (!raw) {
+    return null;
+  }
+  const value = raw.trim();
+  return value === 'zh-TW' || value === 'zh-CN' || value === 'en-US' ? value : null;
+}
+
+function readWebEntryConfig(): WebEntryConfig {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') {
+    return { mode: 'default', embed: false, language: null };
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  const entryRaw = (params.get('entry') ?? '').trim().toLowerCase();
+  const embedRaw = (params.get('embed') ?? '').trim().toLowerCase();
+
+  return {
+    mode: entryRaw === 'practice' ? 'practice' : 'default',
+    embed: embedRaw === '1' || embedRaw === 'true' || embedRaw === 'yes',
+    language: parseWebEntryLanguage(params.get('lang')),
+  };
+}
+
 function localDateKey(date: Date = new Date()): string {
   const year = date.getFullYear();
   const month = `${date.getMonth() + 1}`.padStart(2, '0');
@@ -1452,6 +1478,8 @@ function CoachStatTile(
 
 export default function App() {
   const { width, height } = useWindowDimensions();
+  const webEntryConfig = useMemo(() => readWebEntryConfig(), []);
+  const hasAppliedWebEntryRef = useRef(false);
   const [tableViewportWidth, setTableViewportWidth] = useState(width);
   const [phase, setPhase] = useState<Phase>('lobby');
   const [lobbyZone, setLobbyZone] = useState(0);
@@ -1592,7 +1620,7 @@ export default function App() {
     ? `${lobbyZoneStats.handsWon}W-${lobbyZoneLosses}L-${lobbyZoneStats.handsTied}T`
     : `${lobbyZoneStats.handsWon}W-${lobbyZoneLosses}L`;
   const lobbyZoneWinRate = winRateFromCounts(lobbyZoneStats.handsPlayed, lobbyZoneStats.handsWon);
-  const compactLobby = width < 1080 || height < 620;
+  const compactLobby = webEntryConfig.embed || width < 1080 || height < 620;
   const appLanguageLabel = appLanguageLabels[appLanguage];
   const heroEquityEdge = Number((spotInsight.equity.heroWin + spotInsight.equity.tie * 0.5 - spotInsight.potOddsNeed).toFixed(1));
 
@@ -1827,6 +1855,22 @@ export default function App() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || hasAppliedWebEntryRef.current || !localDbReady) {
+      return;
+    }
+
+    if (webEntryConfig.mode === 'practice') {
+      setPhase('lobby');
+      setTrainingMode('practice');
+    }
+    if (webEntryConfig.language) {
+      setAppLanguage(webEntryConfig.language);
+    }
+
+    hasAppliedWebEntryRef.current = true;
+  }, [localDbReady, webEntryConfig]);
 
   useEffect(() => {
     if (!localDbReady || !activeProfile) {

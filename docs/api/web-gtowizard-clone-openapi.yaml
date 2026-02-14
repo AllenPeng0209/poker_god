@@ -1,0 +1,764 @@
+openapi: 3.0.3
+info:
+  title: ZENGTO GTOWizard Clone API
+  version: 1.0.0
+  description: API contract for Study, Solver, Practice, Analyze, Reports, and AI Coach.
+servers:
+  - url: https://api.zengto.com
+    description: Production
+  - url: https://staging-api.zengto.com
+    description: Staging
+tags:
+  - name: Study
+  - name: Solver
+  - name: Practice
+  - name: Analyze
+  - name: Reports
+  - name: Coach
+paths:
+  /v1/study/spots:
+    get:
+      tags: [Study]
+      summary: List study spots with filters
+      operationId: listStudySpots
+      parameters:
+        - name: format
+          in: query
+          schema:
+            type: string
+        - name: table_type
+          in: query
+          schema:
+            type: string
+        - name: stack_bb
+          in: query
+          schema:
+            type: number
+        - name: street
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: List of spots
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudySpotListResponse'
+
+  /v1/study/nodes/{nodeId}:
+    get:
+      tags: [Study]
+      summary: Get strategy node detail
+      operationId: getStudyNode
+      parameters:
+        - name: nodeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Node detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudyNodeResponse'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/solver/jobs:
+    post:
+      tags: [Solver]
+      summary: Create solver job
+      operationId: createSolverJob
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SolverJobCreateRequest'
+      responses:
+        '201':
+          description: Job created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SolverJobCreateResponse'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/solver/jobs/{jobId}:
+    get:
+      tags: [Solver]
+      summary: Get solver job status and result summary
+      operationId: getSolverJob
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Job detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SolverJobDetailResponse'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/solver/jobs/{jobId}/cancel:
+    post:
+      tags: [Solver]
+      summary: Cancel solver job
+      operationId: cancelSolverJob
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '202':
+          description: Cancel accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcceptedResponse'
+
+  /v1/practice/drills:
+    post:
+      tags: [Practice]
+      summary: Create a drill set
+      operationId: createDrill
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DrillCreateRequest'
+      responses:
+        '201':
+          description: Drill created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DrillResponse'
+
+  /v1/practice/sessions:
+    post:
+      tags: [Practice]
+      summary: Start a training session
+      operationId: startPracticeSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PracticeSessionStartRequest'
+      responses:
+        '201':
+          description: Session started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PracticeSessionResponse'
+
+  /v1/practice/sessions/{sessionId}/complete:
+    post:
+      tags: [Practice]
+      summary: Complete a training session
+      operationId: completePracticeSession
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PracticeSessionCompleteRequest'
+      responses:
+        '200':
+          description: Session completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PracticeSessionResponse'
+
+  /v1/analyze/uploads:
+    post:
+      tags: [Analyze]
+      summary: Create HH upload job
+      operationId: createAnalyzeUpload
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnalyzeUploadCreateRequest'
+      responses:
+        '201':
+          description: Upload job created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyzeUploadResponse'
+
+  /v1/analyze/uploads/{uploadId}:
+    get:
+      tags: [Analyze]
+      summary: Get upload parse status
+      operationId: getAnalyzeUpload
+      parameters:
+        - name: uploadId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Upload detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyzeUploadResponse'
+
+  /v1/analyze/hands:
+    get:
+      tags: [Analyze]
+      summary: List analyzed hands
+      operationId: listAnalyzedHands
+      parameters:
+        - name: upload_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: sort_by
+          in: query
+          schema:
+            type: string
+            enum: [ev_loss, played_at]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+      responses:
+        '200':
+          description: Hands list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyzedHandsResponse'
+
+  /v1/reports/leaks:
+    get:
+      tags: [Reports]
+      summary: Get leak report summary
+      operationId: getLeakReport
+      parameters:
+        - name: window_days
+          in: query
+          schema:
+            type: integer
+            enum: [7, 30, 90]
+            default: 30
+      responses:
+        '200':
+          description: Leak report
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeakReportResponse'
+
+  /v1/coach/chat:
+    post:
+      tags: [Coach]
+      summary: Send message to AI coach
+      operationId: sendCoachMessage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CoachChatRequest'
+      responses:
+        '200':
+          description: Coach response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CoachChatResponse'
+
+  /v1/coach/actions/create-drill:
+    post:
+      tags: [Coach]
+      summary: Execute coach action create drill
+      operationId: coachCreateDrillAction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CoachCreateDrillRequest'
+      responses:
+        '201':
+          description: Drill created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DrillResponse'
+
+  /v1/coach/actions/create-plan:
+    post:
+      tags: [Coach]
+      summary: Execute coach action create weekly plan
+      operationId: coachCreatePlanAction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CoachCreatePlanRequest'
+      responses:
+        '201':
+          description: Plan created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CoachCreatePlanResponse'
+
+security:
+  - bearerAuth: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [request_id, error_code, message]
+      properties:
+        request_id:
+          type: string
+        error_code:
+          type: string
+        message:
+          type: string
+
+    AcceptedResponse:
+      type: object
+      required: [request_id, status]
+      properties:
+        request_id:
+          type: string
+        status:
+          type: string
+          example: accepted
+
+    StudySpot:
+      type: object
+      required: [id, format, table_type, stack_bb, street]
+      properties:
+        id:
+          type: string
+          format: uuid
+        format:
+          type: string
+        table_type:
+          type: string
+        stack_bb:
+          type: number
+        street:
+          type: string
+
+    StudySpotListResponse:
+      type: object
+      required: [request_id, data]
+      properties:
+        request_id:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/StudySpot'
+
+    StudyNodeResponse:
+      type: object
+      required: [request_id, data]
+      properties:
+        request_id:
+          type: string
+        data:
+          type: object
+          required: [id, spot_id, action_key, frequency_payload, ev_payload, version]
+          properties:
+            id:
+              type: string
+              format: uuid
+            spot_id:
+              type: string
+              format: uuid
+            action_key:
+              type: string
+            frequency_payload:
+              type: object
+            ev_payload:
+              type: object
+            version:
+              type: integer
+
+    SolverJobCreateRequest:
+      type: object
+      required: [input_tree]
+      properties:
+        input_tree:
+          type: object
+        priority:
+          type: integer
+          minimum: 1
+          maximum: 10
+          default: 5
+        nodelock_enabled:
+          type: boolean
+          default: false
+
+    SolverJobCreateResponse:
+      type: object
+      required: [request_id, data]
+      properties:
+        request_id:
+          type: string
+        data:
+          type: object
+          required: [job_id, status]
+          properties:
+            job_id:
+              type: string
+              format: uuid
+            status:
+              type: string
+              enum: [queued]
+
+    SolverJobDetailResponse:
+      type: object
+      required: [request_id, data]
+      properties:
+        request_id:
+          type: string
+        data:
+          type: object
+          required: [job_id, status]
+          properties:
+            job_id:
+              type: string
+              format: uuid
+            status:
+              type: string
+              enum: [queued, running, succeeded, failed, canceled]
+            result_summary:
+              type: object
+              nullable: true
+
+    DrillCreateRequest:
+      type: object
+      required: [title, source_type, item_count]
+      properties:
+        title:
+          type: string
+        source_type:
+          type: string
+          enum: [study, analyze, coach, manual]
+        source_ref_id:
+          type: string
+          format: uuid
+          nullable: true
+        item_count:
+          type: integer
+          minimum: 1
+          maximum: 500
+
+    DrillResponse:
+      type: object
+      required: [request_id, data]
+      properties:
+        request_id:
+          type: string
+        data:
+          type: object
+          required: [drill_id, title]
+          properties:
+            drill_id:
+              type: string
+              format: uuid
+            title:
+              type: string
+
+    PracticeSessionStartRequest:
+      type: object
+      required: [drill_id, mode]
+      properties:
+        drill_id:
+          type: string
+          format: uuid
+        mode:
+          type: string
+          enum: [spot, street, fullhand]
+
+    PracticeSessionCompleteRequest:
+      type: object
+      required: [answers]
+      properties:
+        answers:
+          type: array
+          items:
+            type: object
+            required: [item_id, selected_action, decision_time_ms]
+            properties:
+              item_id:
+                type: string
+                format: uuid
+              selected_action:
+                type: string
+              decision_time_ms:
+                type: integer
+
+    PracticeSessionResponse:
+      type: object
+      required: [request_id, data]
+      properties:
+        request_id:
+          type: string
+        data:
+          type: object
+          required: [session_id, mode, status]
+          properties:
+            session_id:
+              type: string
+              format: uuid
+            mode:
+              type: string
+            status:
+              type: string
+              enum: [running, completed]
+            score:
+              type: object
+              nullable: true
+
+    AnalyzeUploadCreateRequest:
+      type: object
+      required: [source_site, file_uri]
+      properties:
+        source_site:
+          type: string
+        file_uri:
+          type: string
+
+    AnalyzeUploadResponse:
+      type: object
+      required: [request_id, data]
+      properties:
+        request_id:
+          type: string
+        data:
+          type: object
+          required: [upload_id, status]
+          properties:
+            upload_id:
+              type: string
+              format: uuid
+            status:
+              type: string
+              enum: [uploaded, parsing, parsed, failed]
+            hands_count:
+              type: integer
+              nullable: true
+
+    AnalyzedHandsResponse:
+      type: object
+      required: [request_id, data]
+      properties:
+        request_id:
+          type: string
+        data:
+          type: array
+          items:
+            type: object
+            required: [hand_id, ev_loss]
+            properties:
+              hand_id:
+                type: string
+                format: uuid
+              played_at:
+                type: string
+                format: date-time
+              ev_loss:
+                type: number
+              error_labels:
+                type: array
+                items:
+                  type: string
+
+    LeakReportResponse:
+      type: object
+      required: [request_id, data]
+      properties:
+        request_id:
+          type: string
+        data:
+          type: object
+          required: [window_days, metrics]
+          properties:
+            window_days:
+              type: integer
+            metrics:
+              type: array
+              items:
+                type: object
+                required: [metric_key, sample_size, player_value, gto_baseline, impact_score]
+                properties:
+                  metric_key:
+                    type: string
+                  sample_size:
+                    type: integer
+                  player_value:
+                    type: number
+                  gto_baseline:
+                    type: number
+                  impact_score:
+                    type: number
+
+    CoachChatRequest:
+      type: object
+      required: [message, mode]
+      properties:
+        conversation_id:
+          type: string
+          format: uuid
+          nullable: true
+        mode:
+          type: string
+          enum: [explain, fix, drill, plan]
+        message:
+          type: string
+        context:
+          type: object
+          properties:
+            module:
+              type: string
+            refs:
+              type: array
+              items:
+                type: object
+
+    CoachChatResponse:
+      type: object
+      required: [request_id, data]
+      properties:
+        request_id:
+          type: string
+        data:
+          type: object
+          required: [conversation_id, answer]
+          properties:
+            conversation_id:
+              type: string
+              format: uuid
+            answer:
+              type: object
+              required: [conclusion, evidence, actions, risk, confidence]
+              properties:
+                conclusion:
+                  type: string
+                evidence:
+                  type: array
+                  items:
+                    type: string
+                actions:
+                  type: array
+                  items:
+                    type: string
+                risk:
+                  type: string
+                confidence:
+                  type: number
+                  minimum: 0
+                  maximum: 1
+
+    CoachCreateDrillRequest:
+      type: object
+      required: [conversation_id, source_ref_id, item_count]
+      properties:
+        conversation_id:
+          type: string
+          format: uuid
+        source_ref_id:
+          type: string
+          format: uuid
+        item_count:
+          type: integer
+          minimum: 1
+          maximum: 500
+
+    CoachCreatePlanRequest:
+      type: object
+      required: [conversation_id, horizon_days]
+      properties:
+        conversation_id:
+          type: string
+          format: uuid
+        horizon_days:
+          type: integer
+          enum: [7, 14]
+
+    CoachCreatePlanResponse:
+      type: object
+      required: [request_id, data]
+      properties:
+        request_id:
+          type: string
+        data:
+          type: object
+          required: [plan_id, horizon_days]
+          properties:
+            plan_id:
+              type: string
+              format: uuid
+            horizon_days:
+              type: integer

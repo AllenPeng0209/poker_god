@@ -1,24 +1,34 @@
-import type { ReactNode } from 'react';
+'use client';
+
+import type { Route } from 'next';
+import Link from 'next/link';
+import { useI18n } from '@/components/i18n/I18nProvider';
+import { MODULE_CONFIG, type ModuleKey } from './moduleConfig';
 
 type ModuleViewProps = {
-  title: string;
-  summary: string;
-  highlights: string[];
-  actionSlot?: ReactNode;
+  moduleKey: ModuleKey;
+  actionHref?: Route;
+  actionLabelKey?: string;
 };
 
-export function ModuleView({ title, summary, highlights, actionSlot }: ModuleViewProps) {
+export function ModuleView({ moduleKey, actionHref, actionLabelKey }: ModuleViewProps) {
+  const { t, list } = useI18n();
+  const config = MODULE_CONFIG[moduleKey];
+  const title = t(config.titleKey);
+  const summary = t(config.summaryKey);
+  const highlights = list(config.highlightsKey);
+
   return (
     <section className="module-panel" aria-labelledby={`module-title-${title}`}>
       <header>
-        <p className="module-eyebrow">Workspace</p>
+        <p className="module-eyebrow">{t('module.common.workspace')}</p>
         <h1 id={`module-title-${title}`}>{title}</h1>
         <p>{summary}</p>
       </header>
 
       <div className="module-grid">
         <article className="module-card">
-          <h2>当前能力</h2>
+          <h2>{t('module.common.capabilityTitle')}</h2>
           <ul>
             {highlights.map((item) => (
               <li key={item}>{item}</li>
@@ -27,10 +37,16 @@ export function ModuleView({ title, summary, highlights, actionSlot }: ModuleVie
         </article>
 
         <article className="module-card module-card--accent">
-          <h2>M1 占位态</h2>
-          <p>当前模块仍是骨架页面，真实数据、交互与 API 能力将在后续故事中逐步接入。</p>
-          <p>你可以先通过下方入口继续闭环流程。</p>
-          {actionSlot ? <div className="module-next-entry">{actionSlot}</div> : null}
+          <h2>{t('module.common.placeholderTitle')}</h2>
+          <p>{t('module.common.placeholderDesc1')}</p>
+          <p>{t('module.common.placeholderDesc2')}</p>
+          {actionHref && actionLabelKey ? (
+            <div className="module-next-entry">
+              <Link className="module-next-link" href={actionHref}>
+                {t(actionLabelKey)}
+              </Link>
+            </div>
+          ) : null}
         </article>
       </div>
     </section>

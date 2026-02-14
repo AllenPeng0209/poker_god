@@ -13,6 +13,10 @@
     "dev:api": "npm --workspace @poker-god/api run dev",
     "build:mobile": "npm --workspace @poker-god/mobile run build",
     "build:web": "npm --workspace @poker-god/web run build",
-    "build:api": "npm --workspace @poker-god/api run build"
+    "build:api": "npm --workspace @poker-god/api run build",
+    "ralph": "bash scripts/ralph/ralph.sh",
+    "ralph:amp": "bash scripts/ralph/ralph.sh --tool amp",
+    "ralph:claude": "bash scripts/ralph/ralph.sh --tool claude",
+    "ralph:codex": "bash scripts/ralph/ralph.sh --tool codex"
   }
 }

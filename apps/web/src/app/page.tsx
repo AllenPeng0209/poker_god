@@ -1,5 +1,5 @@
-import { LandingShell } from '@/components/landing/LandingShell';
+import { redirect } from 'next/navigation';
 
 export default function HomePage() {
-  return <LandingShell />;
+  redirect('/app/dashboard');
 }

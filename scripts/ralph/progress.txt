@@ -3,6 +3,8 @@ Started: Fri Feb 13 13:13:07 CST 2026
 ## Codebase Patterns
 - `apps/web/src/components/shell/AppShell.tsx` owns top nav + drawer source of truth via shared `NAV_ITEMS`; route highlights derive from `pathname` prefix checks.
 - `apps/web/src/components/module/ModuleView.tsx` is the shared unimplemented-module scaffold; pass `actionSlot` to provide a concrete next-step entry in the learning loop.
+- For filterable UI lists in `apps/web`, define a typed dataset module and derive filter options from dataset unique values to keep controls/schema in sync.
+- For detail panes driven by filtered lists, keep `selectedId` state but always derive a fallback item from current filtered results to avoid transient blank states during filter/selection updates.
 ---
 ## 2026-02-13 13:29:11 CST - US-001
 - What was implemented
@@ -28,4 +30,43 @@ Started: Fri Feb 13 13:13:07 CST 2026
     - Browser verification tooling (`dev-browser` skill) is unavailable in this environment, so manual browser verification is required.
   - Useful context
     - `@poker-god/web` currently exposes `typecheck` and `build`; there is no dedicated `lint` script yet.
+---
+## 2026-02-13 13:34:50 CST - US-002
+- What was implemented
+  - Replaced the Study placeholder with a concrete Spot Library page containing seeded spot data and a typed spot schema.
+  - Added `Format`, `Position`, and `Stack (BB)` filters with immediate list + count updates on every filter change.
+  - Rendered each result with structured `format`, `position`, `stack_bb`, and `street` fields to satisfy the Study spot schema contract.
+- Files changed
+  - `apps/web/src/app/app/study/page.tsx`
+  - `apps/web/src/components/study/studySpots.ts`
+  - `apps/web/src/components/study/StudySpotBrowser.tsx`
+  - `apps/web/src/app/globals.css`
+  - `scripts/ralph/prd.json`
+- Learnings for future iterations:
+  - Patterns discovered
+    - Keep filter option lists derived from source data instead of hardcoded values to avoid schema/filter drift.
+  - Gotchas encountered
+    - JSX text containing `>` (for example `->`) can break TSX parsing; use plain text wording instead.
+    - Browser verification tooling (`dev-browser` skill) is unavailable in this environment, so manual browser verification is required.
+  - Useful context
+    - For this repository’s web package, `typecheck` and `build` are the available quality gates; no `lint` or `test` script is defined yet.
+---
+## 2026-02-13 13:57:34 CST - US-003
+- What was implemented
+  - Added node-level Study detail data (`strategy`, `ranges`, `breakdown`) to every spot and surfaced node identifiers/metrics in the UI.
+  - Implemented clickable spot selection with a stable node-detail inspector that keeps content populated while filters and node selection change.
+  - Added `Strategy`, `Ranges`, and `Breakdown` tabs in node detail, each rendering structured metrics and lists.
+- Files changed
+  - `apps/web/src/components/study/studySpots.ts`
+  - `apps/web/src/components/study/StudySpotBrowser.tsx`
+  - `apps/web/src/app/globals.css`
+  - `scripts/ralph/prd.json`
+  - `scripts/ralph/progress.txt`
+- Learnings for future iterations:
+  - Patterns discovered
+    - Node detail UIs should keep selected-id state plus filtered fallback derivation to prevent blank detail panels during rapid filter transitions.
+  - Gotchas encountered
+    - Browser verification tooling (`dev-browser` skill) is unavailable in this environment, so manual browser verification is required.
+  - Useful context
+    - `@poker-god/web` quality gates remain `typecheck` and `build`; no dedicated `lint` or `test` script exists yet.
 ---

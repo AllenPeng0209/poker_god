@@ -1,16 +1,19 @@
 import type { Metadata } from 'next';
+import { I18nProvider } from '@/components/i18n/I18nProvider';
 
 import './globals.css';
 
 export const metadata: Metadata = {
   title: 'ZENGTO Web',
-  description: 'GTOWizard-style strategy workspace with integrated AI coach.'
+  description: 'GTOWizard 风格策略工作台，内置 AI 教练。',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="zh-CN">
-      <body>{children}</body>
+      <body>
+        <I18nProvider>{children}</I18nProvider>
+      </body>
     </html>
   );
 }

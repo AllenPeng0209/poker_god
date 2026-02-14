@@ -1,36 +1,45 @@
 # ZENGTO Web Delivery Docs Index
 
-## 1. 使用顺序（建议）
+## 1. 文档版本
 
-1. 产品范围：`tasks/prd-zengto-web-realtime-solver.md`
-2. 信息架构与路由：`docs/web/ia-routing.md`
+- `V1`：早期 M0/M1（waitlist + analysis MVP）
+- `V2`：GTOWizard 对标版（全模块 + AI 教练）
+
+## 2. V2 阅读顺序（推荐）
+
+1. 产品 PRD：`docs/web/gtowizard-clone-prd.md`
+2. IA 路由：`docs/web/ia-routing.md`
 3. UI 规范：`docs/web/ui-spec.md`
-4. API 合同：`docs/api/web-analysis-openapi.yaml`
-5. 数据模型：`docs/data/web-schema.md`
-6. 埋点方案：`docs/analytics/web-events.md`
-7. 验收方案：`docs/testing/web-acceptance.md`
-8. 环境部署：`docs/dev/web-env.md`
-9. 迭代任务：`tasks/web-m0-m1-backlog.md`
+4. 技术架构：`docs/web/gtowizard-clone-architecture.md`
+5. 数据模型：`docs/web/gtowizard-clone-data-model.md`
+6. API 合同：`docs/api/web-gtowizard-clone-openapi.yaml`
+7. AI 教练：`docs/web/gtowizard-clone-ai-coach-spec.md`
+8. 埋点实验：`docs/web/gtowizard-clone-analytics-experiments.md`
+9. 测试计划：`docs/web/gtowizard-clone-test-plan.md`
+10. 发布运维：`docs/web/gtowizard-clone-release-runbook.md`
+11. 实施 Backlog：`docs/web/gtowizard-clone-backlog.md`
 
-## 2. 开发启动最小集合
+## 3. V2 最小开工集合
 
-若你今天就要开工，先看这 4 份：
+- `docs/web/gtowizard-clone-prd.md`
+- `docs/web/ia-routing.md`
+- `docs/web/ui-spec.md`
+- `docs/api/web-gtowizard-clone-openapi.yaml`
+- `docs/web/gtowizard-clone-backlog.md`
+
+## 4. V1 历史文档（保留）
 
 - `tasks/prd-zengto-web-realtime-solver.md`
-- `docs/web/ia-routing.md`
-- `docs/api/web-analysis-openapi.yaml`
 - `tasks/web-m0-m1-backlog.md`
+- `docs/api/web-analysis-openapi.yaml`
+- `docs/data/web-schema.md`
+- `docs/analytics/web-events.md`
+- `docs/testing/web-acceptance.md`
+- `docs/dev/web-env.md`
 
-## 3. 评审会建议议程
+## 5. 维护规则
 
-- Step 1：确认 M0/M1 边界（PRD + Backlog）
-- Step 2：确认路由与页面状态机（IA）
-- Step 3：确认接口字段（OpenAPI + Data Schema）
-- Step 4：确认可上线标准（Testing + Analytics + Dev Env）
+- V2 为当前主线，新增需求默认更新 V2 文档。
+- 若发布仍依赖 V1 模块，需在 PR 中明确说明双版本影响。
+- API 或 schema 变更必须同步更新对应测试和埋点文档。
 
-## 4. 维护规则
-
-- PRD 变更后，必须同步更新：Backlog、OpenAPI、Acceptance
-- 新增接口后，必须同步更新：OpenAPI、Data Schema、Analytics
-- 发版前，必须核对：Acceptance 与埋点看板
-- ZEN Chat 相关改动需同步：`/app/chat` 路由、`/api/zen/chat` 合同与埋点事件

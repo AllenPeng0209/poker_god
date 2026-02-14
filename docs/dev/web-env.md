@@ -48,6 +48,8 @@ NEXT_PUBLIC_ANALYTICS_KEY=<REDACTED>
 NEXT_PUBLIC_FEATURE_MODE=coming_soon
 NEXT_PUBLIC_WAITLIST_ENABLED=true
 NEXT_PUBLIC_ANALYSIS_ENABLED=false
+NEXT_PUBLIC_PRACTICE_SURFACE=expo
+NEXT_PUBLIC_PRACTICE_EXPO_WEB_URL=http://localhost:8081
 ANALYSIS_SERVICE_API_KEY=<SERVER_ONLY>
 ZEN_API_BASE_URL=http://localhost:3001
 ```
@@ -57,6 +59,9 @@ ZEN_API_BASE_URL=http://localhost:3001
 - `NEXT_PUBLIC_*` 才能注入前端
 - 密钥类字段不得以 `NEXT_PUBLIC_*` 暴露
 - 默认值必须有安全兜底
+- 练习页切换：
+  - `NEXT_PUBLIC_PRACTICE_SURFACE=expo`：使用 `apps/mobile` 的 Expo Web（默认）
+  - `NEXT_PUBLIC_PRACTICE_SURFACE=legacy`：回退到原有 Web `PracticeSessionPanel`
 
 ## 5. Feature Flag 建议
 
