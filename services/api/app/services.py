@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import time
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
@@ -43,6 +44,7 @@ from .schemas import (
     PracticeSubmitAnswerResponse,
     StudySpot,
     StudySpotListResponse,
+    StudySpotMatrixResponse,
     WeeklyPlan,
     ZenChatRequest,
     ZenChatResponse,
@@ -404,6 +406,132 @@ _STUDY_SPOT_SEED: list[dict[str, Any]] = [
             },
         },
     },
+    {
+        "id": "spot-200-001",
+        "title": "200bb BTN vs BB Deep SRP Probe",
+        "format": "Cash 6-max",
+        "position": "BTN vs BB",
+        "stackBb": 200,
+        "street": "Flop",
+        "node": {
+            "nodeCode": "DEEP200_BTN_BB_F_PROBE_K83R",
+            "board": "Ks 8d 3c",
+            "hero": "BTN",
+            "villain": "BB",
+            "potBb": 6.5,
+            "strategy": {
+                "recommendedLine": "Mix small c-bet and check with capped turn plans",
+                "aggregateEvBb": 1.46,
+                "actionMix": [
+                    {"action": "Bet 33%", "frequencyPct": 47, "evBb": 1.52},
+                    {"action": "Check", "frequencyPct": 38, "evBb": 1.34},
+                    {"action": "Bet 75%", "frequencyPct": 15, "evBb": 1.41},
+                ],
+            },
+            "ranges": {
+                "defenseFreqPct": 64,
+                "buckets": [
+                    {"bucket": "Value", "combos": 156, "frequencyPct": 33},
+                    {"bucket": "Semi-bluff", "combos": 118, "frequencyPct": 25},
+                    {"bucket": "Delay-check", "combos": 132, "frequencyPct": 28},
+                    {"bucket": "Backdoor give-up", "combos": 64, "frequencyPct": 14},
+                ],
+            },
+            "breakdown": {
+                "sampleSize": 9180,
+                "avgEvLossBb100": 14.6,
+                "confidence": "High",
+                "leaks": [
+                    {"label": "Over-delay turn on strong top pairs", "frequencyGapPct": 9, "evLossBb100": 4.1},
+                    {"label": "Under-bluff low backdoor combos", "frequencyGapPct": 8, "evLossBb100": 3.6},
+                ],
+            },
+        },
+    },
+    {
+        "id": "spot-200-002",
+        "title": "200bb CO vs BTN Turn Pressure",
+        "format": "Cash 6-max",
+        "position": "CO vs BTN",
+        "stackBb": 200,
+        "street": "Turn",
+        "node": {
+            "nodeCode": "DEEP200_CO_BTN_T_PRESS_QJ6_4",
+            "board": "Qh Jd 6s | 4c",
+            "hero": "CO",
+            "villain": "BTN",
+            "potBb": 11.8,
+            "strategy": {
+                "recommendedLine": "Keep medium sizing as baseline, polarize checks",
+                "aggregateEvBb": 1.08,
+                "actionMix": [
+                    {"action": "Bet 66%", "frequencyPct": 42, "evBb": 1.16},
+                    {"action": "Check", "frequencyPct": 34, "evBb": 0.96},
+                    {"action": "Bet 125%", "frequencyPct": 24, "evBb": 1.09},
+                ],
+            },
+            "ranges": {
+                "defenseFreqPct": 59,
+                "buckets": [
+                    {"bucket": "Merged value", "combos": 143, "frequencyPct": 31},
+                    {"bucket": "High-equity bluffs", "combos": 101, "frequencyPct": 22},
+                    {"bucket": "Pot-control checks", "combos": 121, "frequencyPct": 26},
+                    {"bucket": "Folds", "combos": 98, "frequencyPct": 21},
+                ],
+            },
+            "breakdown": {
+                "sampleSize": 6720,
+                "avgEvLossBb100": 18.7,
+                "confidence": "Medium",
+                "leaks": [
+                    {"label": "Under-polarize on dynamic turns", "frequencyGapPct": 10, "evLossBb100": 5.0},
+                    {"label": "Over-barrel dominated top-pair", "frequencyGapPct": 6, "evLossBb100": 2.9},
+                ],
+            },
+        },
+    },
+    {
+        "id": "spot-200-003",
+        "title": "200bb SB vs BB Deep Check-Raise Defense",
+        "format": "Cash 6-max",
+        "position": "SB vs BB",
+        "stackBb": 200,
+        "street": "Turn",
+        "node": {
+            "nodeCode": "DEEP200_SB_BB_T_XR_DEF_974_A",
+            "board": "9s 7h 4d | Ac",
+            "hero": "BB",
+            "villain": "SB",
+            "potBb": 9.6,
+            "strategy": {
+                "recommendedLine": "Defend with high-equity draws, fold capped bluff-catchers",
+                "aggregateEvBb": 0.71,
+                "actionMix": [
+                    {"action": "Call", "frequencyPct": 49, "evBb": 0.81},
+                    {"action": "Raise 2.8x", "frequencyPct": 17, "evBb": 0.89},
+                    {"action": "Fold", "frequencyPct": 34, "evBb": 0.0},
+                ],
+            },
+            "ranges": {
+                "defenseFreqPct": 66,
+                "buckets": [
+                    {"bucket": "Strong continues", "combos": 118, "frequencyPct": 32},
+                    {"bucket": "Raise mix", "combos": 62, "frequencyPct": 17},
+                    {"bucket": "Marginal bluff-catch", "combos": 73, "frequencyPct": 20},
+                    {"bucket": "Pure folds", "combos": 116, "frequencyPct": 31},
+                ],
+            },
+            "breakdown": {
+                "sampleSize": 5480,
+                "avgEvLossBb100": 20.4,
+                "confidence": "Medium",
+                "leaks": [
+                    {"label": "Over-fold nut gutshots + overcards", "frequencyGapPct": 11, "evLossBb100": 5.6},
+                    {"label": "Under-raise pair + draw combos", "frequencyGapPct": 7, "evLossBb100": 3.3},
+                ],
+            },
+        },
+    },
 ]
 
 
@@ -539,6 +667,518 @@ def _ensure_seed_study_spots(supabase: Client) -> None:
         return
 
 
+_STREET_TO_INDEX = {
+    "Flop": 1,
+    "Turn": 2,
+    "River": 3,
+}
+
+_INDEX_TO_STREET = {
+    1: "Flop",
+    2: "Turn",
+    3: "River",
+}
+
+_MATRIX_RANKS: tuple[str, ...] = ("A", "K", "Q", "J", "T", "9", "8", "7", "6", "5", "4", "3", "2")
+_RANK_TO_VALUE: dict[str, int] = {
+    "A": 14,
+    "K": 13,
+    "Q": 12,
+    "J": 11,
+    "T": 10,
+    "9": 9,
+    "8": 8,
+    "7": 7,
+    "6": 6,
+    "5": 5,
+    "4": 4,
+    "3": 3,
+    "2": 2,
+}
+
+_ROBOPOKER_DEFAULT_FORMAT = "Cash 6-max"
+_ROBOPOKER_DEFAULT_POSITION = "BTN vs BB"
+_ROBOPOKER_DEFAULT_STACK_BB = 100
+
+_EDGE_ACTION_LABELS = {
+    1: "Fold",
+    2: "Check",
+    3: "Call",
+    5: "Shove",
+    22: "Open 2BB",
+    30: "Open 3BB",
+    38: "Open 4BB",
+    70: "Open 8BB",
+    2060: "Raise 1x pot",
+    2068: "Raise 2x pot",
+    4108: "Raise 1/2 pot",
+    4124: "Raise 3/2 pot",
+    6156: "Raise 1/3 pot",
+    6164: "Raise 2/3 pot",
+}
+
+
+def _edge_action_label(edge: int) -> str:
+    return _EDGE_ACTION_LABELS.get(edge, f"Edge {edge}")
+
+
+def _action_bucket(action: str) -> str:
+    lowered = action.strip().lower()
+    if lowered == "fold":
+        return "fold"
+    if lowered in {"check", "call"}:
+        return "passive"
+    return "aggressive"
+
+
+def _street_total_combos(street_index: int) -> int:
+    # Shortdeck combo-count approximation used for range bucket rendering.
+    if street_index == 1:
+        return 465
+    if street_index == 2:
+        return 435
+    return 406
+
+
+def _robopoker_dataset_meta() -> tuple[str, str, int]:
+    dataset_format = os.getenv("ROBOPOKER_FORMAT", _ROBOPOKER_DEFAULT_FORMAT).strip() or _ROBOPOKER_DEFAULT_FORMAT
+    dataset_position = os.getenv("ROBOPOKER_POSITION", _ROBOPOKER_DEFAULT_POSITION).strip() or _ROBOPOKER_DEFAULT_POSITION
+    stack_raw = os.getenv("ROBOPOKER_STACK_BB")
+    dataset_stack = _safe_int(stack_raw, _ROBOPOKER_DEFAULT_STACK_BB) if stack_raw is not None else _ROBOPOKER_DEFAULT_STACK_BB
+    if dataset_stack <= 0:
+        dataset_stack = _ROBOPOKER_DEFAULT_STACK_BB
+    return dataset_format, dataset_position, dataset_stack
+
+
+def _position_actors(position: str) -> tuple[str, str]:
+    if " vs " not in position:
+        return ("BTN", "BB")
+    hero, villain = [part.strip() for part in position.split(" vs ", 1)]
+    if not hero or not villain:
+        return ("BTN", "BB")
+    return (hero, villain)
+
+
+def _spot_confidence(sample_size: int) -> str:
+    if sample_size >= 150:
+        return "High"
+    if sample_size >= 50:
+        return "Medium"
+    return "Low"
+
+
+def _build_spot_leaks(aggressive_pct: float, passive_pct: float, fold_pct: float, ev_loss: float) -> list[dict[str, float | str]]:
+    leaks: list[dict[str, float | str]] = []
+    if fold_pct > 42:
+        gap = fold_pct - 35
+        leaks.append(
+            {
+                "label": "Over-folding against pressure",
+                "frequencyGapPct": round(gap, 1),
+                "evLossBb100": round(max(1.0, gap * 0.45 + ev_loss * 0.08), 1),
+            },
+        )
+    if aggressive_pct < 24:
+        gap = 24 - aggressive_pct
+        leaks.append(
+            {
+                "label": "Under-aggression in value/bluff mix",
+                "frequencyGapPct": round(gap, 1),
+                "evLossBb100": round(max(0.8, gap * 0.35 + ev_loss * 0.06), 1),
+            },
+        )
+    if passive_pct > 62:
+        gap = passive_pct - 55
+        leaks.append(
+            {
+                "label": "Over-passive continue range",
+                "frequencyGapPct": round(gap, 1),
+                "evLossBb100": round(max(0.7, gap * 0.28 + ev_loss * 0.05), 1),
+            },
+        )
+    if not leaks:
+        leaks.append(
+            {
+                "label": "Action mix still converging",
+                "frequencyGapPct": round(max(2.0, ev_loss * 0.1), 1),
+                "evLossBb100": round(max(0.5, ev_loss * 0.15), 1),
+            },
+        )
+    return leaks[:2]
+
+
+def _board_from_seed(street_index: int, present: int, past: int, choices: int) -> str:
+    total_cards = {1: 3, 2: 4, 3: 5}.get(street_index, 3)
+    ranks = "AKQJT98765432"
+    suits = "shdc"
+    deck = [f"{rank}{suit}" for rank in ranks for suit in suits]
+    state = int(hashlib.sha256(f"{present}:{past}:{choices}:{street_index}".encode()).hexdigest()[:16], 16)
+    cards: list[str] = []
+    for _ in range(total_cards):
+        idx = state % len(deck)
+        cards.append(deck.pop(idx))
+        state = (state * 1103515245 + 12345) & 0xFFFFFFFFFFFFFFFF
+    if total_cards == 3:
+        return f"{cards[0]} {cards[1]} {cards[2]}"
+    if total_cards == 4:
+        return f"{cards[0]} {cards[1]} {cards[2]} | {cards[3]}"
+    return f"{cards[0]} {cards[1]} {cards[2]} | {cards[3]} | {cards[4]}"
+
+
+def _build_matrix_hands() -> list[str]:
+    hands: list[str] = []
+    for row_index, row_rank in enumerate(_MATRIX_RANKS):
+        for col_index, col_rank in enumerate(_MATRIX_RANKS):
+            if row_index == col_index:
+                hands.append(f"{row_rank}{col_rank}")
+            elif row_index < col_index:
+                hands.append(f"{row_rank}{col_rank}s")
+            else:
+                hands.append(f"{col_rank}{row_rank}o")
+    return hands
+
+
+_MATRIX_HANDS = _build_matrix_hands()
+
+
+def _hand_strength(hand: str) -> float:
+    first = hand[0:1]
+    second = hand[1:2]
+    first_value = _RANK_TO_VALUE.get(first, 2)
+    second_value = _RANK_TO_VALUE.get(second, 2)
+    suited = hand.endswith("s")
+    pair = first == second
+    high = max(first_value, second_value)
+    low = min(first_value, second_value)
+    gap = high - low
+
+    if pair:
+        return max(0.0, min(1.0, 0.58 + ((high - 2) / 12.0) * 0.42))
+
+    connected_bonus = max(0.0, min(0.1, 0.1 - gap * 0.016))
+    suited_bonus = 0.085 if suited else 0.0
+    base = (high / 14.0) * 0.52 + (low / 14.0) * 0.31 + connected_bonus + suited_bonus
+    return max(0.0, min(0.98, base))
+
+
+def _board_texture_bias(board: str) -> float:
+    tokens = [token for token in board.replace("|", " ").split(" ") if token]
+    cards = [token for token in tokens if len(token) >= 2 and token[0:1].upper() in _RANK_TO_VALUE]
+    if not cards:
+        return 0.0
+
+    ranks = [_RANK_TO_VALUE.get(card[0:1].upper(), 2) for card in cards]
+    suits = [card[1:2].lower() for card in cards]
+    high_card_count = len([rank for rank in ranks if rank >= 11])
+    duplicate_count = len(ranks) - len(set(ranks))
+    max_suit_count = 0
+    for suit in ("s", "h", "d", "c"):
+        max_suit_count = max(max_suit_count, len([value for value in suits if value == suit]))
+
+    sorted_ranks = sorted(set(ranks))
+    gaps = 0
+    for index in range(1, len(sorted_ranks)):
+        gaps += max(0, sorted_ranks[index] - sorted_ranks[index - 1] - 1)
+
+    bias = 0.0
+    bias += high_card_count * 0.055
+    bias += 0.08 if max_suit_count >= 3 else 0.02 if max_suit_count >= 2 else 0.0
+    bias -= duplicate_count * 0.07
+    bias -= 0.03 if gaps <= 1 else 0.0
+    return max(-0.22, min(0.22, bias))
+
+
+def _normalize_frequencies(weights: list[float]) -> list[float]:
+    if not weights:
+        return []
+    safe_weights = [max(0.0, weight) for weight in weights]
+    total = sum(safe_weights)
+    if total <= 0:
+        equal = round(100.0 / len(safe_weights), 1)
+        rounded = [equal for _ in safe_weights]
+    else:
+        rounded = [round((weight / total) * 100.0, 1) for weight in safe_weights]
+    drift = round(100.0 - sum(rounded), 1)
+    if rounded:
+        max_index = max(range(len(rounded)), key=lambda idx: rounded[idx])
+        rounded[max_index] = round(rounded[max_index] + drift, 1)
+    return rounded
+
+
+def _extract_spot_actions(spot: StudySpot) -> list[str]:
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for item in spot.node.strategy.actionMix:
+        action = str(item.action).strip()
+        key = action.lower()
+        if not action or key in seen:
+            continue
+        seen.add(key)
+        deduped.append(action)
+    if not deduped:
+        deduped = ["Raise", "Call", "Fold"]
+    return deduped[:4]
+
+
+def _base_action_mix(spot: StudySpot, actions: list[str]) -> dict[str, float]:
+    raw_map: dict[str, float] = {action: 0.0 for action in actions}
+    for item in spot.node.strategy.actionMix:
+        action = str(item.action).strip()
+        if action in raw_map:
+            raw_map[action] += max(0.0, _safe_float(item.frequencyPct))
+    if sum(raw_map.values()) <= 0:
+        equal = 100.0 / max(1, len(actions))
+        return {action: equal for action in actions}
+    normalized = _normalize_frequencies([raw_map[action] for action in actions])
+    return {action: normalized[index] for index, action in enumerate(actions)}
+
+
+def _build_hand_strategy_for_spot(spot: StudySpot) -> tuple[list[str], list[dict[str, Any]]]:
+    actions = _extract_spot_actions(spot)
+    base_mix = _base_action_mix(spot, actions)
+    texture_bias = _board_texture_bias(spot.node.board)
+
+    hands: list[dict[str, Any]] = []
+    for hand in _MATRIX_HANDS:
+        strength = _hand_strength(hand)
+        centered = (strength - 0.5) * 2.0
+        weights: list[float] = []
+        for action in actions:
+            tone = _action_bucket(action)
+            if tone == "aggressive":
+                factor = max(0.15, min(1.85, 1.0 + centered * 0.56 + texture_bias * 0.35))
+            elif tone == "passive":
+                factor = max(0.2, min(1.45, 1.0 - abs(centered) * 0.34 + (0.14 if centered < 0 else 0.02)))
+            else:
+                factor = max(0.12, min(1.95, 1.0 - centered * 0.62 - texture_bias * 0.18))
+            weights.append(base_mix[action] * factor)
+
+        frequencies = _normalize_frequencies(weights)
+        hand_frequencies = [
+            {
+                "action": action,
+                "frequencyPct": frequencies[index],
+            }
+            for index, action in enumerate(actions)
+        ]
+        aggression_pct = round(
+            sum(
+                item["frequencyPct"]
+                for item in hand_frequencies
+                if _action_bucket(str(item["action"])) != "fold"
+            ),
+            1,
+        )
+        hands.append(
+            {
+                "hand": hand,
+                "frequencies": hand_frequencies,
+                "aggressionPct": aggression_pct,
+            },
+        )
+
+    return actions, hands
+
+
+def _list_study_spots_from_robopoker(
+    format_filter: str | None,
+    position_filter: str | None,
+    stack_bb: int | None,
+    street_filter: str | None,
+    limit: int,
+    offset: int,
+) -> StudySpotListResponse | None:
+    db_url = os.getenv("ROBOPOKER_DB_URL", "").strip()
+    if not db_url:
+        return None
+    dataset_format, dataset_position, dataset_stack_bb = _robopoker_dataset_meta()
+    hero, villain = _position_actors(dataset_position)
+    # Bridge one training slice into a stable UI filter tuple.
+    if format_filter and format_filter != dataset_format:
+        return StudySpotListResponse(requestId=request_id(), total=0, spots=[])
+    if position_filter and position_filter != dataset_position:
+        return StudySpotListResponse(requestId=request_id(), total=0, spots=[])
+    if stack_bb and stack_bb != dataset_stack_bb:
+        return StudySpotListResponse(requestId=request_id(), total=0, spots=[])
+
+    street_index = _STREET_TO_INDEX.get(street_filter) if street_filter else None
+    if street_filter and street_index is None:
+        return StudySpotListResponse(requestId=request_id(), total=0, spots=[])
+
+    try:
+        import psycopg
+    except Exception:
+        return None
+
+    rid = request_id()
+    safe_limit = max(1, min(limit, 200))
+    safe_offset = max(0, offset)
+
+    where_clauses = ["((present >> 8) & 255) BETWEEN 1 AND 3"]
+    params: list[Any] = []
+    if street_index is not None:
+        where_clauses.append("((present >> 8) & 255) = %s")
+        params.append(street_index)
+    where_sql = " AND ".join(where_clauses)
+
+    count_sql = f"""
+        SELECT COUNT(*) FROM (
+            SELECT 1
+            FROM blueprint
+            WHERE {where_sql}
+            GROUP BY past, present, choices
+        ) t
+    """
+
+    scenario_sql = f"""
+        SELECT
+            past,
+            present,
+            choices,
+            COALESCE(SUM(counts), 0) AS visits,
+            COALESCE(SUM(weight), 0) AS total_weight,
+            ((present >> 8) & 255) AS street_index
+        FROM blueprint
+        WHERE {where_sql}
+        GROUP BY past, present, choices
+        ORDER BY visits DESC, total_weight DESC, present, past, choices
+        LIMIT %s OFFSET %s
+    """
+
+    action_sql = """
+        SELECT
+            edge,
+            COALESCE(SUM(weight), 0) AS action_weight,
+            COALESCE(SUM(counts), 0) AS action_visits,
+            COALESCE(SUM(evalue * weight) / NULLIF(SUM(weight), 0), AVG(evalue), 0) AS action_ev,
+            COALESCE(SUM(regret), 0) AS total_regret
+        FROM blueprint
+        WHERE past = %s
+          AND present = %s
+          AND choices = %s
+        GROUP BY edge
+        ORDER BY action_weight DESC, edge
+    """
+
+    try:
+        with psycopg.connect(db_url) as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(count_sql, params)
+                total = _safe_int((cursor.fetchone() or [0])[0])
+                if total == 0:
+                    return StudySpotListResponse(requestId=rid, total=0, spots=[])
+
+                cursor.execute(scenario_sql, [*params, safe_limit, safe_offset])
+                scenarios = cursor.fetchall() or []
+
+                spots: list[StudySpot] = []
+                for past, present, choices, visits, _, st_idx in scenarios:
+                    street_label = _INDEX_TO_STREET.get(_safe_int(st_idx), "Flop")
+                    cursor.execute(action_sql, [past, present, choices])
+                    action_rows = cursor.fetchall() or []
+                    if not action_rows:
+                        continue
+
+                    total_weight = sum(max(0.0, _safe_float(row[1])) for row in action_rows)
+                    if total_weight <= 0:
+                        total_weight = float(len(action_rows))
+
+                    action_mix: list[dict[str, float | str]] = []
+                    action_rank: list[tuple[str, float]] = []
+                    aggressive_pct = 0.0
+                    passive_pct = 0.0
+                    fold_pct = 0.0
+                    weighted_ev = 0.0
+                    best_ev = float("-inf")
+                    for edge, action_weight, _, action_ev, _ in action_rows:
+                        action = _edge_action_label(_safe_int(edge))
+                        weight = max(0.0, _safe_float(action_weight))
+                        frequency_pct = (weight / total_weight * 100.0) if total_weight > 0 else 0.0
+                        ev_bb = _safe_float(action_ev)
+                        weighted_ev += ev_bb * (frequency_pct / 100.0)
+                        best_ev = max(best_ev, ev_bb)
+                        action_mix.append(
+                            {
+                                "action": action,
+                                "frequencyPct": round(frequency_pct, 1),
+                                "evBb": round(ev_bb, 2),
+                            },
+                        )
+                        action_rank.append((action, frequency_pct))
+                        bucket = _action_bucket(action)
+                        if bucket == "fold":
+                            fold_pct += frequency_pct
+                        elif bucket == "passive":
+                            passive_pct += frequency_pct
+                        else:
+                            aggressive_pct += frequency_pct
+
+                    action_rank.sort(key=lambda item: item[1], reverse=True)
+                    top_actions = [item[0] for item in action_rank[:2]]
+                    recommended_line = " -> ".join(top_actions) if top_actions else "Check"
+                    aggregate_ev = round(weighted_ev, 2)
+                    ev_loss_bb100 = max(0.0, (best_ev - weighted_ev) * 100.0)
+
+                    total_combos = _street_total_combos(_safe_int(st_idx))
+                    buckets = [
+                        {
+                            "bucket": "Aggressive",
+                            "combos": int(round(total_combos * aggressive_pct / 100.0)),
+                            "frequencyPct": round(aggressive_pct, 1),
+                        },
+                        {
+                            "bucket": "Passive",
+                            "combos": int(round(total_combos * passive_pct / 100.0)),
+                            "frequencyPct": round(passive_pct, 1),
+                        },
+                        {
+                            "bucket": "Fold",
+                            "combos": int(round(total_combos * fold_pct / 100.0)),
+                            "frequencyPct": round(fold_pct, 1),
+                        },
+                    ]
+
+                    node = {
+                        "nodeCode": f"RP_{street_label.upper()}_{present}_{past}_{choices}",
+                        "board": _board_from_seed(_safe_int(st_idx), _safe_int(present), _safe_int(past), _safe_int(choices)),
+                        "hero": hero,
+                        "villain": villain,
+                        "potBb": {1: 6.5, 2: 12.0, 3: 18.0}.get(_safe_int(st_idx), 6.5),
+                        "strategy": {
+                            "recommendedLine": recommended_line,
+                            "aggregateEvBb": aggregate_ev,
+                            "actionMix": action_mix,
+                        },
+                        "ranges": {
+                            "defenseFreqPct": round(max(0.0, min(100.0, 100.0 - fold_pct)), 1),
+                            "buckets": buckets,
+                        },
+                        "breakdown": {
+                            "sampleSize": _safe_int(visits),
+                            "avgEvLossBb100": round(ev_loss_bb100, 1),
+                            "confidence": _spot_confidence(_safe_int(visits)),
+                            "leaks": _build_spot_leaks(aggressive_pct, passive_pct, fold_pct, ev_loss_bb100),
+                        },
+                    }
+
+                    spot = StudySpot.model_validate(
+                        {
+                            "id": f"rp-{_safe_int(st_idx)}-{_safe_int(present)}-{_safe_int(past)}-{_safe_int(choices)}",
+                            "title": f"Robopoker {street_label} Spot {_safe_int(present)}",
+                            "format": dataset_format,
+                            "position": dataset_position,
+                            "stackBb": dataset_stack_bb,
+                            "street": street_label,
+                            "node": node,
+                        },
+                    )
+                    spots.append(spot)
+
+                return StudySpotListResponse(requestId=rid, total=total, spots=spots)
+    except Exception:
+        return None
+
+
 def list_study_spots(
     supabase: Client | None,
     format_filter: str | None,
@@ -551,6 +1191,17 @@ def list_study_spots(
     rid = request_id()
     safe_limit = max(1, min(limit, 200))
     safe_offset = max(0, offset)
+
+    robopoker_spots = _list_study_spots_from_robopoker(
+        format_filter=format_filter,
+        position_filter=position_filter,
+        stack_bb=stack_bb,
+        street_filter=street_filter,
+        limit=safe_limit,
+        offset=safe_offset,
+    )
+    if robopoker_spots is not None:
+        return robopoker_spots
 
     if supabase is not None:
         _ensure_seed_study_spots(supabase)
@@ -607,6 +1258,98 @@ def list_study_spots(
 
     spots = [StudySpot.model_validate(spot) for spot in page]
     return StudySpotListResponse(requestId=rid, total=len(filtered), spots=spots)
+
+
+def _find_seed_spot(spot_id: str) -> StudySpot | None:
+    for spot in _STUDY_SPOT_SEED:
+        if str(spot.get("id")) == spot_id:
+            try:
+                return StudySpot.model_validate(spot)
+            except Exception:
+                return None
+    return None
+
+
+def _find_db_spot(supabase: Client, spot_id: str) -> StudySpot | None:
+    try:
+        row_list = (
+            supabase.table("pg_mvp_study_spots")
+            .select("*")
+            .eq("id", spot_id)
+            .limit(1)
+            .execute()
+            .data
+            or []
+        )
+    except Exception:
+        return None
+
+    if not row_list:
+        return None
+    row = row_list[0]
+    try:
+        return StudySpot.model_validate(
+            {
+                "id": str(row["id"]),
+                "title": str(row["title"]),
+                "format": str(row["format"]),
+                "position": str(row["position"]),
+                "stackBb": _safe_int(row.get("stack_bb")),
+                "street": str(row["street"]),
+                "node": row.get("node") or {},
+            },
+        )
+    except Exception:
+        return None
+
+
+def _find_robopoker_spot(spot_id: str) -> StudySpot | None:
+    if not spot_id.startswith("rp-"):
+        return None
+    response = _list_study_spots_from_robopoker(
+        format_filter=None,
+        position_filter=None,
+        stack_bb=None,
+        street_filter=None,
+        limit=200,
+        offset=0,
+    )
+    if response is None:
+        return None
+    for spot in response.spots:
+        if spot.id == spot_id:
+            return spot
+    return None
+
+
+def get_study_spot_matrix(supabase: Client | None, spot_id: str) -> StudySpotMatrixResponse | None:
+    spot: StudySpot | None = None
+    source = "seed"
+
+    if supabase is not None:
+        _ensure_seed_study_spots(supabase)
+        spot = _find_db_spot(supabase, spot_id)
+
+    if spot is None:
+        spot = _find_seed_spot(spot_id)
+        source = "seed"
+
+    if spot is None:
+        spot = _find_robopoker_spot(spot_id)
+        source = "robopoker"
+
+    if spot is None:
+        return None
+
+    actions, hands = _build_hand_strategy_for_spot(spot)
+    return StudySpotMatrixResponse(
+        requestId=request_id(),
+        spotId=spot.id,
+        nodeCode=spot.node.nodeCode,
+        source="robopoker" if source == "robopoker" else "seed",
+        actions=actions,
+        hands=hands,
+    )
 
 
 def create_drill(supabase: Client, payload: DrillCreateRequest) -> DrillCreateResponse:

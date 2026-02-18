@@ -44,7 +44,7 @@ export type StudySpot = {
   title: string;
   format: 'Cash 6-max' | 'Cash Heads-Up' | 'MTT 9-max';
   position: 'BTN vs BB' | 'CO vs BTN' | 'SB vs BB' | 'UTG vs BB';
-  stack_bb: 20 | 40 | 60 | 100;
+  stack_bb: 20 | 40 | 60 | 100 | 200;
   street: 'Flop' | 'Turn' | 'River';
   node: StudyNodeDetail;
 };
@@ -378,6 +378,132 @@ export const STUDY_SPOTS: StudySpot[] = [
         leaks: [
           { label: 'Too many flop checks with overcards', frequency_gap_pct: 10, ev_loss_bb100: 4.2 },
           { label: 'Under-bluff wheel gutters', frequency_gap_pct: 8, ev_loss_bb100: 3.4 }
+        ]
+      }
+    }
+  },
+  {
+    id: 'spot-200-001',
+    title: '200bb BTN vs BB Deep SRP Probe',
+    format: 'Cash 6-max',
+    position: 'BTN vs BB',
+    stack_bb: 200,
+    street: 'Flop',
+    node: {
+      node_code: 'DEEP200_BTN_BB_F_PROBE_K83R',
+      board: 'Ks 8d 3c',
+      hero: 'BTN',
+      villain: 'BB',
+      pot_bb: 6.5,
+      strategy: {
+        recommended_line: 'Mix small c-bet and check with capped turn plans',
+        aggregate_ev_bb: 1.46,
+        action_mix: [
+          { action: 'Bet 33%', frequency_pct: 47, ev_bb: 1.52 },
+          { action: 'Check', frequency_pct: 38, ev_bb: 1.34 },
+          { action: 'Bet 75%', frequency_pct: 15, ev_bb: 1.41 }
+        ]
+      },
+      ranges: {
+        defense_freq_pct: 64,
+        buckets: [
+          { bucket: 'Value', combos: 156, frequency_pct: 33 },
+          { bucket: 'Semi-bluff', combos: 118, frequency_pct: 25 },
+          { bucket: 'Delay-check', combos: 132, frequency_pct: 28 },
+          { bucket: 'Backdoor give-up', combos: 64, frequency_pct: 14 }
+        ]
+      },
+      breakdown: {
+        sample_size: 9180,
+        avg_ev_loss_bb100: 14.6,
+        confidence: 'High',
+        leaks: [
+          { label: 'Over-delay turn on strong top pairs', frequency_gap_pct: 9, ev_loss_bb100: 4.1 },
+          { label: 'Under-bluff low backdoor combos', frequency_gap_pct: 8, ev_loss_bb100: 3.6 }
+        ]
+      }
+    }
+  },
+  {
+    id: 'spot-200-002',
+    title: '200bb CO vs BTN Turn Pressure',
+    format: 'Cash 6-max',
+    position: 'CO vs BTN',
+    stack_bb: 200,
+    street: 'Turn',
+    node: {
+      node_code: 'DEEP200_CO_BTN_T_PRESS_QJ6_4',
+      board: 'Qh Jd 6s | 4c',
+      hero: 'CO',
+      villain: 'BTN',
+      pot_bb: 11.8,
+      strategy: {
+        recommended_line: 'Keep medium sizing as baseline, polarize checks',
+        aggregate_ev_bb: 1.08,
+        action_mix: [
+          { action: 'Bet 66%', frequency_pct: 42, ev_bb: 1.16 },
+          { action: 'Check', frequency_pct: 34, ev_bb: 0.96 },
+          { action: 'Bet 125%', frequency_pct: 24, ev_bb: 1.09 }
+        ]
+      },
+      ranges: {
+        defense_freq_pct: 59,
+        buckets: [
+          { bucket: 'Merged value', combos: 143, frequency_pct: 31 },
+          { bucket: 'High-equity bluffs', combos: 101, frequency_pct: 22 },
+          { bucket: 'Pot-control checks', combos: 121, frequency_pct: 26 },
+          { bucket: 'Folds', combos: 98, frequency_pct: 21 }
+        ]
+      },
+      breakdown: {
+        sample_size: 6720,
+        avg_ev_loss_bb100: 18.7,
+        confidence: 'Medium',
+        leaks: [
+          { label: 'Under-polarize on dynamic turns', frequency_gap_pct: 10, ev_loss_bb100: 5.0 },
+          { label: 'Over-barrel dominated top-pair', frequency_gap_pct: 6, ev_loss_bb100: 2.9 }
+        ]
+      }
+    }
+  },
+  {
+    id: 'spot-200-003',
+    title: '200bb SB vs BB Deep Check-Raise Defense',
+    format: 'Cash 6-max',
+    position: 'SB vs BB',
+    stack_bb: 200,
+    street: 'Turn',
+    node: {
+      node_code: 'DEEP200_SB_BB_T_XR_DEF_974_A',
+      board: '9s 7h 4d | Ac',
+      hero: 'BB',
+      villain: 'SB',
+      pot_bb: 9.6,
+      strategy: {
+        recommended_line: 'Defend with high-equity draws, fold capped bluff-catchers',
+        aggregate_ev_bb: 0.71,
+        action_mix: [
+          { action: 'Call', frequency_pct: 49, ev_bb: 0.81 },
+          { action: 'Raise 2.8x', frequency_pct: 17, ev_bb: 0.89 },
+          { action: 'Fold', frequency_pct: 34, ev_bb: 0 }
+        ]
+      },
+      ranges: {
+        defense_freq_pct: 66,
+        buckets: [
+          { bucket: 'Strong continues', combos: 118, frequency_pct: 32 },
+          { bucket: 'Raise mix', combos: 62, frequency_pct: 17 },
+          { bucket: 'Marginal bluff-catch', combos: 73, frequency_pct: 20 },
+          { bucket: 'Pure folds', combos: 116, frequency_pct: 31 }
+        ]
+      },
+      breakdown: {
+        sample_size: 5480,
+        avg_ev_loss_bb100: 20.4,
+        confidence: 'Medium',
+        leaks: [
+          { label: 'Over-fold nut gutshots + overcards', frequency_gap_pct: 11, ev_loss_bb100: 5.6 },
+          { label: 'Under-raise pair + draw combos', frequency_gap_pct: 7, ev_loss_bb100: 3.3 }
         ]
       }
     }

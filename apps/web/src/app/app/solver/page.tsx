@@ -1,5 +1,5 @@
-import { ModuleView } from '@/components/module/ModuleView';
+import { SolverWorkbench } from '@/components/solver/SolverWorkbench';
 
 export default function SolverPage() {
-  return <ModuleView moduleKey="solver" />;
+  return <SolverWorkbench />;
 }

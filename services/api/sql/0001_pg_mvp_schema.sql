@@ -106,7 +106,7 @@ create table if not exists pg_mvp_study_spots (
   title text not null,
   format text not null check (format in ('Cash 6-max', 'Cash Heads-Up', 'MTT 9-max')),
   position text not null check (position in ('BTN vs BB', 'CO vs BTN', 'SB vs BB', 'UTG vs BB')),
-  stack_bb int not null check (stack_bb in (20, 40, 60, 100)),
+  stack_bb int not null check (stack_bb in (20, 40, 60, 100, 200)),
   street text not null check (street in ('Flop', 'Turn', 'River')),
   node jsonb not null,
   created_at timestamptz not null default now(),

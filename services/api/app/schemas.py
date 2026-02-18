@@ -30,7 +30,7 @@ class TrainingZonesResponse(BaseModel):
 
 StudySpotFormat = Literal["Cash 6-max", "Cash Heads-Up", "MTT 9-max"]
 StudySpotPosition = Literal["BTN vs BB", "CO vs BTN", "SB vs BB", "UTG vs BB"]
-StudySpotStackBb = Literal[20, 40, 60, 100]
+StudySpotStackBb = Literal[20, 40, 60, 100, 200]
 StudySpotStreet = Literal["Flop", "Turn", "River"]
 StudyConfidence = Literal["High", "Medium", "Low"]
 
@@ -96,6 +96,26 @@ class StudySpotListResponse(BaseModel):
     requestId: str
     total: int
     spots: list[StudySpot]
+
+
+class StudyHandActionFrequency(BaseModel):
+    action: str
+    frequencyPct: float
+
+
+class StudyHandMatrixItem(BaseModel):
+    hand: str
+    frequencies: list[StudyHandActionFrequency]
+    aggressionPct: float
+
+
+class StudySpotMatrixResponse(BaseModel):
+    requestId: str
+    spotId: str
+    nodeCode: str
+    source: Literal["seed", "robopoker"]
+    actions: list[str]
+    hands: list[StudyHandMatrixItem]
 
 
 ZenChatRole = Literal["user", "assistant"]

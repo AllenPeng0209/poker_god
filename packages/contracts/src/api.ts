@@ -12,7 +12,7 @@ export interface TrainingZonesResponse {
 
 export type StudySpotFormat = 'Cash 6-max' | 'Cash Heads-Up' | 'MTT 9-max';
 export type StudySpotPosition = 'BTN vs BB' | 'CO vs BTN' | 'SB vs BB' | 'UTG vs BB';
-export type StudySpotStackBb = 20 | 40 | 60 | 100;
+export type StudySpotStackBb = 20 | 40 | 60 | 100 | 200;
 export type StudySpotStreet = 'Flop' | 'Turn' | 'River';
 export type StudyConfidence = 'High' | 'Medium' | 'Low';
 
@@ -73,6 +73,26 @@ export interface StudySpotListResponse {
   spots: StudySpot[];
 }
 
+export interface StudyHandActionFrequency {
+  action: string;
+  frequencyPct: number;
+}
+
+export interface StudyHandMatrixItem {
+  hand: string;
+  frequencies: StudyHandActionFrequency[];
+  aggressionPct: number;
+}
+
+export interface StudySpotMatrixResponse {
+  requestId: string;
+  spotId: string;
+  nodeCode: string;
+  source: 'seed' | 'robopoker';
+  actions: string[];
+  hands: StudyHandMatrixItem[];
+}
+
 export type ZenChatRole = 'user' | 'assistant';
 
 export interface ZenChatMessage {
@@ -86,10 +106,7 @@ export interface ZenChatRequest {
   message: string;
   history?: ZenChatMessage[];
   locale?: 'zh-CN' | 'en-US';
-  context?: {
-    source?: string;
-    analysisJobId?: string;
-  };
+  context?: Record<string, unknown>;
 }
 
 export interface ZenChatResponse {

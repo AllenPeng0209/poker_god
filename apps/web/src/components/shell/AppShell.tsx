@@ -3,7 +3,7 @@
 import type { Route } from 'next';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { useI18n } from '@/components/i18n/I18nProvider';
 import { AICoachDrawer } from '@/components/coach/AICoachDrawer';
 
@@ -13,12 +13,24 @@ type NavItem = {
   icon: string;
 };
 
+type TopNavItem = {
+  href: Route;
+  label: string;
+  icon: string;
+};
+
 const NAV_ITEMS: NavItem[] = [
   { labelKey: 'shell.nav.study', href: '/app/study', icon: 'S' },
   { labelKey: 'shell.nav.practice', href: '/app/practice', icon: 'P' },
   { labelKey: 'shell.nav.analyze', href: '/app/analyze', icon: 'A' },
-  { labelKey: 'shell.nav.reports', href: '/app/reports', icon: 'R' },
-  { labelKey: 'shell.nav.aiCoach', href: '/app/ai-coach/history', icon: 'C' }
+  { labelKey: 'shell.nav.reports', href: '/app/reports', icon: 'R' }
+];
+
+const TOP_NAV_ITEMS: TopNavItem[] = [
+  { href: '/app/play', label: 'Play', icon: 'P' },
+  { href: '/app/study', label: 'Study', icon: 'S' },
+  { href: '/app/practice', label: 'Practice', icon: 'R' },
+  { href: '/app/analyze', label: 'Analyze', icon: 'A' },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -26,6 +38,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [isDrawerOpen, setDrawerOpen] = useState(true);
   const [isCompactScreen, setCompactScreen] = useState(false);
+  const [isCoachOpen, setCoachOpen] = useState(false);
+  const [coachWidth, setCoachWidth] = useState(420);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(max-width: 1024px)');
@@ -46,6 +60,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [isCompactScreen, pathname]);
 
   useEffect(() => {
+    if (isCompactScreen) {
+      setCoachOpen(false);
+    }
+  }, [isCompactScreen, pathname]);
+
+  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'b') {
         event.preventDefault();
@@ -57,8 +77,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
+  const shellClassName = [
+    'wizard-shell',
+    isDrawerOpen ? 'wizard-shell--drawer-open' : '',
+    isCoachOpen ? 'wizard-shell--coach-open' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+  const shellStyle = { '--coach-width': `${coachWidth}px` } as CSSProperties;
+
   return (
-    <div className={isDrawerOpen ? 'wizard-shell wizard-shell--drawer-open' : 'wizard-shell'}>
+    <div className={shellClassName} style={shellStyle}>
       <header className="wizard-topbar">
         <div className="wizard-topbar__left">
           <button
@@ -77,8 +106,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
+        <nav className="wizard-topnav" aria-label={t('shell.aria.moduleTabs')}>
+          {TOP_NAV_ITEMS.map((item) => {
+            const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={isActive ? 'wizard-topnav__link wizard-topnav__link--active' : 'wizard-topnav__link'}
+              >
+                <span className="wizard-topnav__icon" aria-hidden>
+                  {item.icon}
+                </span>
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
+        </nav>
+
         <div className="wizard-topbar__right">
-          <AICoachDrawer pathname={pathname} />
           <button
             type="button"
             className="wizard-icon-button"
@@ -137,6 +183,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <main className="wizard-main">
         <div className="wizard-main-content">{children}</div>
       </main>
+
+      <AICoachDrawer
+        pathname={pathname}
+        isOpen={isCoachOpen}
+        width={coachWidth}
+        onOpenChange={setCoachOpen}
+        onWidthChange={(value) => setCoachWidth(Math.max(320, Math.min(760, value)))}
+      />
     </div>
   );
 }

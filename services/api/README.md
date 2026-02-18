@@ -23,6 +23,16 @@ Backend has been migrated to Python and stores MVP data in Supabase tables prefi
 - `PORT` (optional, default `3001`)
 - `CORS_ORIGIN` (optional, default `*`, supports comma-separated domains)
 
+## Optional Solver Bridge Env
+
+- `ROBOPOKER_DB_URL` (optional)
+  - If set, `GET /api/study/spots` will read real study spots from `robopoker` training tables (`blueprint`, etc.) and map them to the web contract.
+  - If unset or unavailable, API keeps existing Supabase/in-memory fallback behavior.
+- `ROBOPOKER_FORMAT` (optional, default `Cash 6-max`)
+- `ROBOPOKER_POSITION` (optional, default `BTN vs BB`)
+- `ROBOPOKER_STACK_BB` (optional, default `100`)
+  - These 3 vars define the filter tuple exposed to frontend for bridged robopoker spots.
+
 ## Production Security Env
 
 - `APP_VERSION` (returned by `/ready`)
@@ -57,6 +67,9 @@ Mobile env alias (optional, backend will auto-read):
 - `GET /api/training/zones`
 - `GET /api/study/spots`
   - Query: `format`, `position`, `stackBb`, `street`, `limit`, `offset`
+  - `stackBb` supports: `20 | 40 | 60 | 100 | 200`
+- `GET /api/study/spots/:spotId/matrix`
+  - Returns 169-hand action-frequency matrix for the selected study node.
 - `POST /api/zen/chat`
 - `GET /api/practice/drills`
 - `POST /api/practice/drills`

@@ -18,7 +18,10 @@ import type {
   PracticeSessionStartResponse,
   PracticeSubmitAnswerRequest,
   PracticeSubmitAnswerResponse,
+  StudySpotMatrixResponse,
   StudySpotListResponse,
+  ZenChatRequest,
+  ZenChatResponse,
 } from '@poker-god/contracts';
 
 type ApiErrorResponse = {
@@ -78,7 +81,7 @@ export const apiClient = {
   async listStudySpots(filters?: {
     format?: 'Cash 6-max' | 'Cash Heads-Up' | 'MTT 9-max';
     position?: 'BTN vs BB' | 'CO vs BTN' | 'SB vs BB' | 'UTG vs BB';
-    stackBb?: 20 | 40 | 60 | 100;
+    stackBb?: 20 | 40 | 60 | 100 | 200;
     street?: 'Flop' | 'Turn' | 'River';
     limit?: number;
     offset?: number;
@@ -93,6 +96,10 @@ export const apiClient = {
 
     const querySuffix = query.toString();
     return requestJson<StudySpotListResponse>(`/api/study/spots${querySuffix ? `?${querySuffix}` : ''}`);
+  },
+
+  async getStudySpotMatrix(spotId: string): Promise<StudySpotMatrixResponse> {
+    return requestJson<StudySpotMatrixResponse>(`/api/study/spots/${spotId}/matrix`);
   },
 
   async startPracticeSession(input: PracticeSessionStartRequest): Promise<PracticeSessionStartResponse> {
@@ -147,6 +154,13 @@ export const apiClient = {
 
   async getLeakReport(windowDays: 7 | 30 | 90): Promise<LeakReportResponse> {
     return requestJson<LeakReportResponse>(`/api/reports/leaks?windowDays=${windowDays}`);
+  },
+
+  async zenChat(input: ZenChatRequest): Promise<ZenChatResponse> {
+    return requestJson<ZenChatResponse>('/api/zen/chat', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
   },
 
   async coachChat(input: CoachChatRequest): Promise<CoachChatResponse> {

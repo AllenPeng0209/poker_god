@@ -35,6 +35,7 @@ from .schemas import (
     PracticeSubmitAnswerRequest,
     PracticeSubmitAnswerResponse,
     StudySpotListResponse,
+    StudySpotMatrixResponse,
     TrainingZone,
     TrainingZonesResponse,
     ZenChatRequest,
@@ -50,6 +51,7 @@ from .services import (
     create_drill,
     generate_zen_chat,
     get_analyze_upload,
+    get_study_spot_matrix,
     ingest_events,
     list_study_spots,
     list_analyze_hands,
@@ -266,7 +268,7 @@ def study_spots(
     allowed_formats = {"Cash 6-max", "Cash Heads-Up", "MTT 9-max"}
     allowed_positions = {"BTN vs BB", "CO vs BTN", "SB vs BB", "UTG vs BB"}
     allowed_streets = {"Flop", "Turn", "River"}
-    allowed_stacks = {20, 40, 60, 100}
+    allowed_stacks = {20, 40, 60, 100, 200}
 
     if format and format not in allowed_formats:
         return _error(400, "invalid_format", f"unsupported format: {format}")
@@ -292,6 +294,21 @@ def study_spots(
         offset=offset,
     )
     response.headers["Cache-Control"] = "public, max-age=30, stale-while-revalidate=120"
+    return result
+
+
+@app.get("/api/study/spots/{spot_id}/matrix", response_model=StudySpotMatrixResponse)
+def study_spot_matrix(spot_id: str, response: Response) -> StudySpotMatrixResponse | JSONResponse:
+    try:
+        supabase = get_supabase_client()
+    except RuntimeError:
+        supabase = None
+
+    result = get_study_spot_matrix(supabase=supabase, spot_id=spot_id)
+    if result is None:
+        return _error(404, "study_spot_not_found", f"study spot {spot_id} not found")
+
+    response.headers["Cache-Control"] = "public, max-age=60, stale-while-revalidate=300"
     return result
 
 

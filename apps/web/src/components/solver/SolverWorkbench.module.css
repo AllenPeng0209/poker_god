@@ -1,0 +1,716 @@
+.solverRoot {
+  display: grid;
+  gap: 14px;
+}
+
+.solverHeader {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(255, 151, 93, 0.2), transparent 38%),
+    radial-gradient(circle at 100% 100%, rgba(78, 228, 255, 0.16), transparent 36%),
+    linear-gradient(150deg, rgba(18, 21, 32, 0.96), rgba(10, 13, 22, 0.96));
+  padding: 18px 20px;
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.34);
+}
+
+.eyebrow {
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  color: #f8b26d;
+  font-family: var(--font-mono), monospace;
+}
+
+.solverHeader h1 {
+  margin-top: 4px;
+  font-size: clamp(26px, 3vw, 38px);
+  line-height: 1.02;
+  font-family: var(--font-display), serif;
+}
+
+.lead {
+  margin-top: 8px;
+  max-width: 760px;
+  color: rgba(232, 238, 252, 0.82);
+  line-height: 1.5;
+  font-size: 14px;
+}
+
+.headerStats {
+  display: grid;
+  align-content: flex-start;
+  gap: 8px;
+}
+
+.headerStats span {
+  min-width: 144px;
+  min-height: 32px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-mono), monospace;
+  font-size: 12px;
+  color: #cbe1ff;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.workspaceGrid {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr) 300px;
+  gap: 12px;
+}
+
+.configPanel,
+.tablePanel,
+.linePanel {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  background: rgba(10, 13, 22, 0.9);
+  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.28);
+}
+
+.configPanel {
+  padding: 16px;
+  display: grid;
+  gap: 14px;
+  align-content: flex-start;
+}
+
+.configPanel h2,
+.linePanel h2 {
+  margin: 0;
+  font-size: 18px;
+  font-family: var(--font-body), sans-serif;
+}
+
+.fieldLabel {
+  display: grid;
+  gap: 8px;
+  font-size: 13px;
+  color: rgba(228, 234, 248, 0.88);
+}
+
+.fieldLabel select {
+  min-height: 38px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.04);
+  color: #e5ecfa;
+  padding: 0 10px;
+  font-family: var(--font-mono), monospace;
+}
+
+.boardStack {
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 12px;
+  background: rgba(2, 6, 12, 0.4);
+}
+
+.boardStack h3 {
+  margin: 0;
+  font-family: var(--font-body), sans-serif;
+  font-size: 14px;
+}
+
+.boardRows {
+  margin-top: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.boardRows > div {
+  display: grid;
+  gap: 5px;
+}
+
+.boardRows span {
+  font-size: 12px;
+  color: rgba(188, 201, 227, 0.74);
+}
+
+.boardPills {
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.boardPills b,
+.selectedTray b {
+  min-height: 26px;
+  min-width: 40px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-family: var(--font-mono), monospace;
+}
+
+.boardPills em,
+.selectedTray em,
+.emptyLog {
+  font-style: normal;
+  color: rgba(188, 201, 227, 0.54);
+  font-size: 13px;
+}
+
+.controlRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.controlRow button,
+.pickerFooter button {
+  min-height: 34px;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.04);
+  color: #d6def0;
+}
+
+.controlRow button:disabled,
+.pickerFooter button:disabled,
+.actionButton:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.previewPanel {
+  border-radius: 12px;
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+  padding: 12px;
+  background: rgba(3, 7, 15, 0.54);
+}
+
+.previewPanel h3 {
+  margin: 0;
+  font-size: 13px;
+  font-family: var(--font-body), sans-serif;
+}
+
+.previewPanel pre {
+  margin: 10px 0 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #cce2ff;
+  font-size: 12px;
+  line-height: 1.4;
+  font-family: var(--font-mono), monospace;
+}
+
+.tablePanel {
+  padding: 14px;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 10px;
+}
+
+.streetStepper {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.streetChip {
+  min-height: 34px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-family: var(--font-mono), monospace;
+  color: rgba(203, 216, 240, 0.75);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.streetChipDone {
+  border-color: rgba(95, 230, 176, 0.36);
+  color: #b5f8db;
+}
+
+.streetChipActive {
+  border-color: rgba(255, 169, 110, 0.54);
+  background: rgba(255, 155, 92, 0.16);
+  color: #ffe5d1;
+}
+
+.tableArena {
+  min-height: 420px;
+  position: relative;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background:
+    radial-gradient(circle at center, rgba(51, 111, 93, 0.28), rgba(18, 30, 30, 0.76) 40%, rgba(8, 10, 18, 0.94) 78%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0));
+  overflow: hidden;
+}
+
+.tableArena::before {
+  content: '';
+  position: absolute;
+  inset: 6% 14%;
+  border-radius: 999px;
+  border: 1px dashed rgba(235, 243, 255, 0.22);
+  pointer-events: none;
+}
+
+.tableCore {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  min-width: 220px;
+  min-height: 112px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(8, 11, 17, 0.84);
+  display: grid;
+  place-items: center;
+  text-align: center;
+  padding: 10px;
+}
+
+.tableCore p {
+  margin: 0;
+  color: rgba(174, 194, 226, 0.78);
+  font-family: var(--font-mono), monospace;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+}
+
+.tableCore strong {
+  font-size: 16px;
+  color: #f2f7ff;
+}
+
+.seatToken {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  min-width: 78px;
+  min-height: 58px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(8, 10, 16, 0.9);
+  color: #e3ecff;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 3px;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.3);
+}
+
+.seatToken span {
+  font-size: 13px;
+  font-family: var(--font-mono), monospace;
+}
+
+.seatToken small {
+  font-size: 10px;
+  color: rgba(192, 204, 226, 0.76);
+}
+
+.seatTokenActed {
+  border-color: rgba(99, 217, 173, 0.38);
+  background: rgba(53, 143, 114, 0.22);
+}
+
+.seatTokenSelected {
+  border-color: rgba(255, 176, 112, 0.7);
+  box-shadow: 0 0 0 2px rgba(255, 176, 112, 0.32);
+}
+
+.seatTokenFolded {
+  border-color: rgba(255, 112, 112, 0.45);
+  background: rgba(113, 24, 24, 0.34);
+  color: rgba(255, 210, 210, 0.82);
+}
+
+.actionDock {
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 10px;
+  background: rgba(4, 8, 14, 0.72);
+  display: grid;
+  gap: 9px;
+}
+
+.actionDock p {
+  margin: 0;
+  color: rgba(196, 207, 226, 0.84);
+  font-size: 13px;
+}
+
+.actionButtons {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.actionButton {
+  min-height: 34px;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #eff6ff;
+  font-family: var(--font-mono), monospace;
+  font-size: 12px;
+}
+
+.actionTonemuted {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.actionTonesafe {
+  background: rgba(66, 192, 149, 0.24);
+  border-color: rgba(96, 243, 190, 0.38);
+}
+
+.actionTonewarn {
+  background: rgba(241, 172, 71, 0.24);
+  border-color: rgba(255, 189, 94, 0.42);
+}
+
+.actionTonehot {
+  background: rgba(255, 112, 112, 0.24);
+  border-color: rgba(255, 136, 136, 0.5);
+}
+
+.linePanel {
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+  align-content: flex-start;
+}
+
+.streetLogs {
+  display: grid;
+  gap: 10px;
+}
+
+.streetLogs section {
+  border-radius: 11px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.02);
+  padding: 9px;
+  display: grid;
+  gap: 7px;
+}
+
+.streetLogs header {
+  min-height: 26px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+}
+
+.streetLogs strong {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-family: var(--font-mono), monospace;
+}
+
+.streetLogs ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 5px;
+}
+
+.streetLogs li {
+  min-height: 30px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px;
+}
+
+.streetLogs li span {
+  font-size: 12px;
+  color: rgba(190, 202, 224, 0.82);
+}
+
+.streetLogs li b {
+  font-size: 12px;
+  color: #f6faff;
+  font-family: var(--font-mono), monospace;
+}
+
+.pickerOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(1, 4, 10, 0.72);
+  z-index: 120;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+
+.pickerDialog {
+  width: min(920px, 94vw);
+  max-height: 92vh;
+  overflow: auto;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background:
+    radial-gradient(circle at 0% 0%, rgba(255, 171, 105, 0.2), transparent 36%),
+    radial-gradient(circle at 100% 100%, rgba(76, 161, 255, 0.18), transparent 34%),
+    rgba(12, 14, 24, 0.96);
+  padding: 14px;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.48);
+}
+
+.pickerHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.pickerHeader p {
+  margin: 0;
+  color: rgba(196, 207, 227, 0.78);
+  font-size: 11px;
+  letter-spacing: 0.13em;
+  font-family: var(--font-mono), monospace;
+}
+
+.pickerHeader h3 {
+  margin: 4px 0 0;
+  font-size: 23px;
+  font-family: var(--font-body), sans-serif;
+}
+
+.pickerClose {
+  min-height: 34px;
+  min-width: 34px;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+  color: #f4f7ff;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.pickerTabs {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+}
+
+.pickerTab,
+.pickerTabActive {
+  min-height: 28px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-family: var(--font-mono), monospace;
+}
+
+.pickerTab {
+  color: rgba(181, 197, 222, 0.66);
+}
+
+.pickerTabActive {
+  color: #1a242f;
+  background: linear-gradient(140deg, #65d9ad, #85d6ff);
+  border-color: transparent;
+}
+
+.selectedTray {
+  margin-top: 10px;
+  min-height: 44px;
+  border-radius: 11px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(0, 0, 0, 0.24);
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.rankHeader {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: 58px repeat(var(--rank-count, 13), minmax(0, 1fr));
+  gap: 5px;
+  align-items: center;
+}
+
+.rankHeader strong {
+  min-height: 28px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-family: var(--font-body), sans-serif;
+}
+
+.pickerGrid {
+  margin-top: 6px;
+  display: grid;
+  gap: 6px;
+}
+
+.suitRow {
+  display: grid;
+  grid-template-columns: 58px repeat(var(--rank-count, 13), minmax(0, 1fr));
+  gap: 5px;
+}
+
+.suitBadge {
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+}
+
+.cardCell {
+  min-height: 36px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  font-size: 20px;
+  font-family: var(--font-body), sans-serif;
+}
+
+.suits {
+  background: linear-gradient(140deg, rgba(152, 160, 177, 0.35), rgba(128, 139, 162, 0.22));
+  color: #eef4ff;
+}
+
+.suith {
+  background: linear-gradient(140deg, rgba(177, 39, 39, 0.56), rgba(124, 20, 20, 0.48));
+  color: #ffe9e9;
+}
+
+.suitd {
+  background: linear-gradient(140deg, rgba(41, 69, 203, 0.58), rgba(26, 41, 124, 0.52));
+  color: #ecf0ff;
+}
+
+.suitc {
+  background: linear-gradient(140deg, rgba(32, 132, 52, 0.58), rgba(17, 87, 29, 0.5));
+  color: #e4ffe8;
+}
+
+.cardCellSelected {
+  box-shadow: 0 0 0 2px rgba(255, 225, 128, 0.72);
+  border-color: rgba(255, 225, 128, 0.82);
+}
+
+.pickerFooter {
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.confirmButton {
+  background: linear-gradient(140deg, #63dda9, #72d1ff) !important;
+  color: #0a1e22 !important;
+  border-color: transparent !important;
+  font-weight: 700;
+}
+
+@media (max-width: 1320px) {
+  .workspaceGrid {
+    grid-template-columns: 280px minmax(0, 1fr);
+  }
+
+  .linePanel {
+    grid-column: 1 / -1;
+  }
+
+  .streetLogs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 980px) {
+  .solverHeader {
+    flex-direction: column;
+  }
+
+  .workspaceGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .tableArena {
+    min-height: 360px;
+  }
+
+  .streetLogs {
+    grid-template-columns: 1fr;
+  }
+
+  .pickerDialog {
+    width: min(860px, 98vw);
+    padding: 12px;
+  }
+}
+
+@media (max-width: 760px) {
+  .tableArena {
+    min-height: 320px;
+  }
+
+  .seatToken {
+    min-width: 68px;
+    min-height: 54px;
+  }
+
+  .actionButtons {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .rankHeader {
+    grid-template-columns: 44px repeat(var(--rank-count, 13), minmax(24px, 1fr));
+    gap: 4px;
+  }
+
+  .rankHeader strong {
+    min-height: 24px;
+    font-size: 12px;
+  }
+
+  .suitRow {
+    grid-template-columns: 44px repeat(var(--rank-count, 13), minmax(24px, 1fr));
+    gap: 4px;
+  }
+
+  .cardCell {
+    min-height: 30px;
+    font-size: 15px;
+  }
+
+  .suitBadge {
+    font-size: 16px;
+  }
+}
