@@ -1,5 +1,7 @@
 import * as SQLite from 'expo-sqlite';
+import { createEmptyHeroStats } from '../engine/heroStats';
 import type { HeroStatsSnapshot } from '../engine/heroStats';
+import { initialProgress } from '../engine/progression';
 import type { HandState, ProgressState, Street } from '../types/poker';
 
 const DB_NAME = 'poker-god-local.db';
@@ -27,6 +29,44 @@ type ZoneHandStatsRow = {
   hands_played: number;
   hands_won: number;
   hands_tied: number;
+};
+
+type HandRecordSummaryRow = {
+  id: number;
+  zone_id: string;
+  phase: string;
+  winner: HandState['winner'];
+  result_text: string;
+  hero_stack_start: number;
+  hero_stack_end: number;
+  villain_stack_start: number;
+  villain_stack_end: number;
+  pot_end: number;
+  created_at: string;
+};
+
+type HandRecordDetailRow = {
+  id: number;
+  profile_id: string;
+  zone_id: string;
+  phase: string;
+  winner: HandState['winner'];
+  result_text: string;
+  hero_player_id: string;
+  focus_villain_id: string;
+  hero_stack_start: number;
+  hero_stack_end: number;
+  villain_stack_start: number;
+  villain_stack_end: number;
+  pot_end: number;
+  stage_chips_json: string;
+  action_history_json: string;
+  decision_records_json: string;
+  bankroll_snapshot_json: string;
+  hero_stats_snapshot_json: string;
+  progress_snapshot_json: string;
+  hand_json: string;
+  created_at: string;
 };
 
 let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
@@ -69,6 +109,33 @@ export interface ZoneHandStats {
   handsPlayed: number;
   handsWon: number;
   handsTied: number;
+}
+
+export interface HandRecordSummary {
+  id: number;
+  zoneId: string;
+  phase: string;
+  winner: HandState['winner'];
+  resultText: string;
+  heroStackStart: number;
+  heroStackEnd: number;
+  villainStackStart: number;
+  villainStackEnd: number;
+  potEnd: number;
+  createdAt: string;
+}
+
+export interface HandRecordDetail extends HandRecordSummary {
+  profileId: string;
+  heroPlayerId: string;
+  focusVillainId: string;
+  stageChips: StageChipBreakdown;
+  actionHistory: HandState['history'];
+  decisionRecords: HandState['decisionRecords'];
+  bankrollSnapshot: Record<string, number>;
+  heroStatsSnapshot: HeroStatsSnapshot;
+  progressSnapshot: ProgressState;
+  hand: HandState;
 }
 
 function toIsoNow(): string {
@@ -315,6 +382,166 @@ export async function listRecordedZoneHandStats(profileId: string): Promise<Zone
     handsWon: Number(row.hands_won ?? 0),
     handsTied: Number(row.hands_tied ?? 0),
   }));
+}
+
+export async function listHandRecordSummaries(
+  profileId: string,
+  limit = 60,
+  offset = 0,
+): Promise<HandRecordSummary[]> {
+  const db = await getDb();
+  const safeLimit = Math.max(1, Math.min(200, Math.floor(limit)));
+  const safeOffset = Math.max(0, Math.floor(offset));
+  const rows = await db.getAllAsync<HandRecordSummaryRow>(
+    `
+      SELECT
+        id,
+        zone_id,
+        phase,
+        winner,
+        result_text,
+        hero_stack_start,
+        hero_stack_end,
+        villain_stack_start,
+        villain_stack_end,
+        pot_end,
+        created_at
+      FROM hand_records
+      WHERE profile_id = ?
+      ORDER BY created_at DESC, id DESC
+      LIMIT ? OFFSET ?
+    `,
+    profileId,
+    safeLimit,
+    safeOffset,
+  );
+
+  return rows.map((row) => ({
+    id: Number(row.id),
+    zoneId: row.zone_id,
+    phase: row.phase,
+    winner: row.winner,
+    resultText: row.result_text ?? '',
+    heroStackStart: Number(row.hero_stack_start ?? 0),
+    heroStackEnd: Number(row.hero_stack_end ?? 0),
+    villainStackStart: Number(row.villain_stack_start ?? 0),
+    villainStackEnd: Number(row.villain_stack_end ?? 0),
+    potEnd: Number(row.pot_end ?? 0),
+    createdAt: row.created_at,
+  }));
+}
+
+function toRecordNumbers(raw: unknown): Record<string, number> {
+  if (!raw || typeof raw !== 'object') return {};
+  const source = raw as Record<string, unknown>;
+  const result: Record<string, number> = {};
+  Object.entries(source).forEach(([key, value]) => {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      result[key] = value;
+    }
+  });
+  return result;
+}
+
+function toStageChipBreakdown(raw: unknown): StageChipBreakdown {
+  const fallback = createEmptyStageBreakdown();
+  if (!raw || typeof raw !== 'object') return fallback;
+  const source = raw as Partial<Record<Street, Partial<StageChipSnapshot>>>;
+  const result = createEmptyStageBreakdown();
+  STREET_ORDER.forEach((street) => {
+    const stage = source[street];
+    if (!stage) {
+      result[street] = fallback[street];
+      return;
+    }
+    result[street] = {
+      contributed: normalizeAmount(Number(stage.contributed ?? 0)),
+      heroContributed: normalizeAmount(Number(stage.heroContributed ?? 0)),
+      focusVillainContributed: normalizeAmount(Number(stage.focusVillainContributed ?? 0)),
+      forcedBlindContributed: normalizeAmount(Number(stage.forcedBlindContributed ?? 0)),
+      byPlayer: toRecordNumbers(stage.byPlayer),
+      potAfterStreet: normalizeAmount(Number(stage.potAfterStreet ?? 0)),
+    };
+  });
+  return result;
+}
+
+export async function getHandRecordDetail(
+  profileId: string,
+  recordId: number,
+): Promise<HandRecordDetail | null> {
+  const db = await getDb();
+  const row = await db.getFirstAsync<HandRecordDetailRow>(
+    `
+      SELECT
+        id,
+        profile_id,
+        zone_id,
+        phase,
+        winner,
+        result_text,
+        hero_player_id,
+        focus_villain_id,
+        hero_stack_start,
+        hero_stack_end,
+        villain_stack_start,
+        villain_stack_end,
+        pot_end,
+        stage_chips_json,
+        action_history_json,
+        decision_records_json,
+        bankroll_snapshot_json,
+        hero_stats_snapshot_json,
+        progress_snapshot_json,
+        hand_json,
+        created_at
+      FROM hand_records
+      WHERE profile_id = ? AND id = ?
+      LIMIT 1
+    `,
+    profileId,
+    recordId,
+  );
+
+  if (!row) {
+    return null;
+  }
+
+  const stageChips = toStageChipBreakdown(safeJsonParse<unknown>(row.stage_chips_json));
+  const actionHistory = safeJsonParse<HandState['history']>(row.action_history_json) ?? [];
+  const decisionRecords = safeJsonParse<HandState['decisionRecords']>(row.decision_records_json) ?? [];
+  const bankrollSnapshot = toRecordNumbers(safeJsonParse<unknown>(row.bankroll_snapshot_json));
+  const heroStatsSnapshot = safeJsonParse<HeroStatsSnapshot>(row.hero_stats_snapshot_json) ?? createEmptyHeroStats();
+  const progressSnapshot = safeJsonParse<ProgressState>(row.progress_snapshot_json) ?? initialProgress;
+  const hand = safeJsonParse<HandState>(row.hand_json);
+
+  if (!hand) {
+    return null;
+  }
+
+  return {
+    id: Number(row.id),
+    profileId: row.profile_id,
+    zoneId: row.zone_id,
+    phase: row.phase,
+    winner: row.winner,
+    resultText: row.result_text ?? '',
+    heroPlayerId: row.hero_player_id,
+    focusVillainId: row.focus_villain_id,
+    heroStackStart: Number(row.hero_stack_start ?? 0),
+    heroStackEnd: Number(row.hero_stack_end ?? 0),
+    villainStackStart: Number(row.villain_stack_start ?? 0),
+    villainStackEnd: Number(row.villain_stack_end ?? 0),
+    potEnd: Number(row.pot_end ?? 0),
+    createdAt: row.created_at,
+    stageChips,
+    actionHistory,
+    decisionRecords,
+    bankrollSnapshot,
+    heroStatsSnapshot,
+    progressSnapshot,
+    hand,
+  };
 }
 
 export async function saveCompletedHandRecord(input: SaveHandRecordInput): Promise<SaveHandRecordResult> {

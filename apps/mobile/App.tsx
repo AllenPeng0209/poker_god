@@ -5,6 +5,7 @@ import * as FileSystem from 'expo-file-system';
 import * as Speech from 'expo-speech';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, DimensionValue, Easing, GestureResponderEvent, LayoutChangeEvent, Platform, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { BottomTabBar } from './src/components/navigation/BottomTabBar';
 import { leakLabels, trainingZones } from './src/data/zones';
 import { cardToDisplay } from './src/engine/cards';
 import { analyzeCurrentSpot, applyHeroAction, createNewHand } from './src/engine/game';
@@ -12,9 +13,23 @@ import { accumulateHeroStats, createEmptyHeroStats, statRatePercent } from './sr
 import type { HeroStatsSnapshot, RatioStat } from './src/engine/heroStats';
 import { buildSpotInsight } from './src/engine/insights';
 import { buildLocalCoachSummary, requestCoachVoiceAdvice } from './src/engine/qwenCoach';
+import type { RootTab, RootTabItem } from './src/navigation/rootTabs';
+import { LearnScreen } from './src/screens/LearnScreen';
+import { ProfileScreen } from './src/screens/ProfileScreen';
+import { ReviewScreen } from './src/screens/ReviewScreen';
 import { applyDecisionResult, applyHandResult, getTopLeak, initialProgress, winRate } from './src/engine/progression';
-import { countRecordedHands, ensureDefaultProfile, initializeLocalDb, listRecordedZoneHandStats, loadProfileSnapshot, saveCompletedHandRecord, saveProfileSnapshot } from './src/storage/localDb';
-import type { LocalProfile } from './src/storage/localDb';
+import {
+  countRecordedHands,
+  ensureDefaultProfile,
+  getHandRecordDetail,
+  initializeLocalDb,
+  listHandRecordSummaries,
+  listRecordedZoneHandStats,
+  loadProfileSnapshot,
+  saveCompletedHandRecord,
+  saveProfileSnapshot,
+} from './src/storage/localDb';
+import type { HandRecordDetail, HandRecordSummary, LocalProfile } from './src/storage/localDb';
 import { ActionAdvice, ActionType, AiProfile, Card, HandState, HeroLeak, ProgressState, Street, TablePosition, TrainingZone } from './src/types/poker';
 
 type Phase = 'lobby' | 'table';
@@ -123,6 +138,9 @@ const CAREER_XP_RESCUE_MIN_MULTIPLIER = 0.4;
 const SUBSIDY_BB = 40;
 const LOAN_BB = 100;
 const LOAN_REPAY_RATE = 0.25;
+const NAV_DRAWER_WIDTH = 90;
+const NAV_COLLAPSED_WIDTH = 44;
+const NAV_IOS_LANDSCAPE_SAFE_LEFT = 0;
 const tableOrder: TablePosition[] = ['UTG', 'LJ', 'HJ', 'CO', 'BTN', 'SB', 'BB'];
 function positionRelativeToButton(position: TablePosition, buttonPosition: TablePosition): TablePosition {
   const positionIdx = tableOrder.indexOf(position);
@@ -1194,6 +1212,49 @@ function makeSeats(zoneIndex: number): Seat[] {
   return seats;
 }
 
+function restoreSeatsFromRecordedHand(handState: HandState, fallbackZoneIndex: number): Seat[] {
+  const seats: Seat[] = seatLayout.map((anchor) => ({
+    id: anchor.id,
+    pos: anchor.pos,
+    role: 'empty',
+  }));
+
+  handState.players.forEach((player) => {
+    const seatIdxById = seats.findIndex((seat) => seat.id === player.id);
+    const seatIdx = seatIdxById !== -1 ? seatIdxById : seats.findIndex((seat) => seat.pos === player.position);
+    if (seatIdx === -1) {
+      return;
+    }
+    if (player.role === 'hero') {
+      seats[seatIdx] = {
+        id: seats[seatIdx].id,
+        pos: seats[seatIdx].pos,
+        role: 'hero',
+      };
+      return;
+    }
+    seats[seatIdx] = {
+      id: seats[seatIdx].id,
+      pos: seats[seatIdx].pos,
+      role: 'ai',
+      ai: player.ai ?? pickAi(fallbackZoneIndex),
+    };
+  });
+
+  if (!seats.some((seat) => seat.role === 'hero')) {
+    const heroSeatIdx = seats.findIndex((seat) => seat.id === HERO_SEAT);
+    if (heroSeatIdx !== -1) {
+      seats[heroSeatIdx] = {
+        id: seats[heroSeatIdx].id,
+        pos: seats[heroSeatIdx].pos,
+        role: 'hero',
+      };
+    }
+  }
+
+  return seats;
+}
+
 function seatName(seat: Seat, language: AppLanguage = 'zh-TW'): string {
   if (seat.role === 'hero') return 'Hero';
   if (seat.role === 'ai') return seat.ai?.name ?? 'AI';
@@ -1478,9 +1539,14 @@ function CoachStatTile(
 
 export default function App() {
   const { width, height } = useWindowDimensions();
+  const navSafeInsetLeft = Platform.OS === 'ios' && width > height ? NAV_IOS_LANDSCAPE_SAFE_LEFT : 0;
+  const navCollapsedOffset = NAV_COLLAPSED_WIDTH + navSafeInsetLeft;
+  const navExpandedOffset = NAV_DRAWER_WIDTH + navSafeInsetLeft;
   const webEntryConfig = useMemo(() => readWebEntryConfig(), []);
   const hasAppliedWebEntryRef = useRef(false);
   const [tableViewportWidth, setTableViewportWidth] = useState(width);
+  const [rootTab, setRootTab] = useState<RootTab>('play');
+  const [navDrawerOpen, setNavDrawerOpen] = useState(false);
   const [phase, setPhase] = useState<Phase>('lobby');
   const [lobbyZone, setLobbyZone] = useState(0);
   const [zoneIndex, setZoneIndex] = useState(0);
@@ -1510,6 +1576,10 @@ export default function App() {
   const [activeProfile, setActiveProfile] = useState<LocalProfile | null>(null);
   const [localDbReady, setLocalDbReady] = useState(false);
   const [handRecordCount, setHandRecordCount] = useState(0);
+  const [reviewRecords, setReviewRecords] = useState<HandRecordSummary[]>([]);
+  const [reviewLoading, setReviewLoading] = useState(false);
+  const [reviewSelectedId, setReviewSelectedId] = useState<number | null>(null);
+  const [reviewSelectedDetail, setReviewSelectedDetail] = useState<HandRecordDetail | null>(null);
 
   const [seats, setSeats] = useState<Seat[]>(() => initialSeatsForApp);
   const [buttonSeatId, setButtonSeatId] = useState(HERO_SEAT);
@@ -1623,6 +1693,12 @@ export default function App() {
   const compactLobby = webEntryConfig.embed || width < 1080 || height < 620;
   const appLanguageLabel = appLanguageLabels[appLanguage];
   const heroEquityEdge = Number((spotInsight.equity.heroWin + spotInsight.equity.tie * 0.5 - spotInsight.potOddsNeed).toFixed(1));
+  const rootTabItems = useMemo<RootTabItem[]>(() => ([
+    { key: 'play', icon: '♠', label: l(appLanguage, '實戰', '实战', 'Play') },
+    { key: 'learn', icon: '📗', label: l(appLanguage, '學習', '学习', 'Learn') },
+    { key: 'review', icon: '📑', label: l(appLanguage, '復盤', '复盘', 'Review') },
+    { key: 'profile', icon: '👤', label: l(appLanguage, '我的', '我的', 'My') },
+  ]), [appLanguage]);
 
   const visibleBoard = hand.board.slice(0, displayedBoardCount);
   const holes = Math.max(0, 5 - visibleBoard.length);
@@ -1740,6 +1816,151 @@ export default function App() {
     setPhase('lobby');
     setNote(l(appLanguage, '你的當前籌碼已歸零，已返回遊戲大廳。', '你的当前筹码已归零，已返回游戏大厅。', 'Your current stack hit zero. Returned to the lobby.'));
   }, [appLanguage, closeBankruptcyOverlay]);
+
+  const closeTransientPanels = useCallback(() => {
+    setAnalysisOpen(false);
+    setOpsOpen(false);
+    setMissionOpen(false);
+    setLobbySettingsOpen(false);
+  }, []);
+
+  const handleRootTabChange = useCallback((next: RootTab) => {
+    setRootTab(next);
+    setNavDrawerOpen(false);
+    if (next !== 'play') {
+      closeTransientPanels();
+    }
+  }, [closeTransientPanels]);
+
+  const handleResumePlay = useCallback(() => {
+    setRootTab('play');
+    setNavDrawerOpen(false);
+  }, []);
+
+  const loadReviewRecords = useCallback(
+    async (preferredRecordId?: number | null) => {
+      if (!localDbReady || !activeProfile) {
+        setReviewRecords([]);
+        setReviewSelectedId(null);
+        setReviewSelectedDetail(null);
+        return;
+      }
+      setReviewLoading(true);
+      try {
+        const rows = await listHandRecordSummaries(activeProfile.id, 80, 0);
+        setReviewRecords(rows);
+        const target = preferredRecordId ?? reviewSelectedId;
+        const hasTarget = target !== null && rows.some((row) => row.id === target);
+        const nextId = hasTarget ? target : (rows[0]?.id ?? null);
+        setReviewSelectedId(nextId);
+        if (nextId === null) {
+          setReviewSelectedDetail(null);
+        } else {
+          const detail = await getHandRecordDetail(activeProfile.id, nextId);
+          setReviewSelectedDetail(detail);
+        }
+      } catch (err) {
+        console.warn('Load review records failed', err);
+      } finally {
+        setReviewLoading(false);
+      }
+    },
+    [activeProfile, localDbReady, reviewSelectedId],
+  );
+
+  const handleReviewSelect = useCallback(
+    async (recordId: number) => {
+      setReviewSelectedId(recordId);
+      if (!localDbReady || !activeProfile) {
+        setReviewSelectedDetail(null);
+        return;
+      }
+      setReviewLoading(true);
+      try {
+        const detail = await getHandRecordDetail(activeProfile.id, recordId);
+        setReviewSelectedDetail(detail);
+      } catch (err) {
+        console.warn('Load review detail failed', err);
+      } finally {
+        setReviewLoading(false);
+      }
+    },
+    [activeProfile, localDbReady],
+  );
+
+  const handleReplayFromReview = useCallback(
+    async (recordId: number) => {
+      if (!localDbReady || !activeProfile) {
+        setRootTab('play');
+        return;
+      }
+
+      setReviewLoading(true);
+      try {
+        const detail = reviewSelectedDetail?.id === recordId
+          ? reviewSelectedDetail
+          : await getHandRecordDetail(activeProfile.id, recordId);
+
+        if (!detail) {
+          setNote(l(appLanguage, '找不到這手牌的復盤資料。', '找不到这手牌的复盘资料。', 'Replay data for this hand was not found.'));
+          return;
+        }
+
+        const targetZoneIdx = trainingZones.findIndex((zoneItem) => zoneItem.id === detail.zoneId);
+        const nextZoneIdx = targetZoneIdx >= 0 ? targetZoneIdx : zoneIndex;
+        const replaySeats = restoreSeatsFromRecordedHand(detail.hand, nextZoneIdx);
+        const replayBattleSeatId = replaySeats.some((seat) => seat.id === detail.focusVillainId && seat.role === 'ai')
+          ? detail.focusVillainId
+          : (replaySeats.find((seat) => seat.role === 'ai')?.id ?? null);
+        const replayButtonSeatId = replaySeats.find((seat) => seat.pos === detail.hand.buttonPosition && seat.role !== 'empty')?.id
+          ?? HERO_SEAT;
+
+        closeTransientPanels();
+        setRootTab('play');
+        setPhase('table');
+        setZoneIndex(nextZoneIdx);
+        setLobbyZone(nextZoneIdx);
+        setReviewSelectedId(detail.id);
+        setReviewSelectedDetail(detail);
+        setSeats(replaySeats);
+        setButtonSeatId(replayButtonSeatId);
+        setSelectedSeatId(replayBattleSeatId ?? HERO_SEAT);
+        setBattleSeatId(replayBattleSeatId);
+        setPendingReplacementSeatIds([]);
+        setLeakGuess(null);
+        setDisplayedBoardCount(0);
+        setTableFeed([]);
+        setActionFeed([]);
+        setSeatVisual(buildSeatVisualMap(replaySeats, appLanguage));
+        setEventQueue([]);
+        setAutoPlayEvents(true);
+        setHand(detail.hand);
+        setRaiseAmount(detail.hand.toCall + detail.hand.minRaise);
+        enqueueTableEvents(buildHandOpeningEvents(replaySeats, detail.hand));
+        setNote(
+          l(
+            appLanguage,
+            `已載入復盤 #${detail.id}，正在按原始行動線回放。`,
+            `已载入复盘 #${detail.id}，正在按原始行动线回放。`,
+            `Loaded replay #${detail.id}. Replaying the original action line now.`,
+          ),
+        );
+      } catch (err) {
+        console.warn('Replay from review failed', err);
+        setNote(l(appLanguage, '復盤回放失敗，請重試。', '复盘回放失败，请重试。', 'Replay failed. Please try again.'));
+      } finally {
+        setReviewLoading(false);
+      }
+    },
+    [
+      activeProfile,
+      appLanguage,
+      closeTransientPanels,
+      localDbReady,
+      reviewSelectedDetail,
+      zoneIndex,
+    ],
+  );
 
   useEffect(() => setRaiseAmount((v) => clamp(v, minRaise, raiseCap)), [minRaise, raiseCap]);
   useEffect(() => {
@@ -1871,6 +2092,13 @@ export default function App() {
 
     hasAppliedWebEntryRef.current = true;
   }, [localDbReady, webEntryConfig]);
+
+  useEffect(() => {
+    if (rootTab !== 'review') {
+      return;
+    }
+    void loadReviewRecords();
+  }, [rootTab, handRecordCount, loadReviewRecords]);
 
   useEffect(() => {
     if (!localDbReady || !activeProfile) {
@@ -3181,12 +3409,135 @@ export default function App() {
     }
   }
 
+  if (rootTab === 'learn') {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <StatusBar style="light" />
+        <LinearGradient colors={['#0a1b2c', '#081d32', '#06261a']} style={styles.bg}>
+          <View style={styles.navRoot}>
+            <View style={[styles.navContent, { marginLeft: navDrawerOpen ? navExpandedOffset : navCollapsedOffset }]}>
+              <LearnScreen
+                language={appLanguage}
+                zoneName={zoneDisplayName}
+                zoneFocus={zoneFocus(zone, appLanguage)}
+                onResumePlay={handleResumePlay}
+              />
+            </View>
+            <BottomTabBar
+              activeTab={rootTab}
+              items={rootTabItems}
+              onTabChange={handleRootTabChange}
+              open={navDrawerOpen}
+              onOpenChange={setNavDrawerOpen}
+              drawerWidth={NAV_DRAWER_WIDTH}
+              collapsedWidth={NAV_COLLAPSED_WIDTH}
+              safeInsetLeft={navSafeInsetLeft}
+            />
+          </View>
+        </LinearGradient>
+      </SafeAreaView>
+    );
+  }
+
+  if (rootTab === 'review') {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <StatusBar style="light" />
+        <LinearGradient colors={['#0a1b2c', '#081d32', '#06261a']} style={styles.bg}>
+          <View style={styles.navRoot}>
+            <View style={[styles.navContent, { marginLeft: navDrawerOpen ? navExpandedOffset : navCollapsedOffset }]}>
+              <ReviewScreen
+                language={appLanguage}
+                loading={reviewLoading}
+                records={reviewRecords}
+                selectedRecordId={reviewSelectedId}
+                detail={reviewSelectedDetail}
+                onSelectRecord={(recordId) => { void handleReviewSelect(recordId); }}
+                onRefresh={() => { void loadReviewRecords(reviewSelectedId); }}
+                onReplayHand={(recordId) => { void handleReplayFromReview(recordId); }}
+                onResumePlay={handleResumePlay}
+              />
+            </View>
+            <BottomTabBar
+              activeTab={rootTab}
+              items={rootTabItems}
+              onTabChange={handleRootTabChange}
+              open={navDrawerOpen}
+              onOpenChange={setNavDrawerOpen}
+              drawerWidth={NAV_DRAWER_WIDTH}
+              collapsedWidth={NAV_COLLAPSED_WIDTH}
+              safeInsetLeft={navSafeInsetLeft}
+            />
+          </View>
+        </LinearGradient>
+      </SafeAreaView>
+    );
+  }
+
+  if (rootTab === 'profile') {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <StatusBar style="light" />
+        <LinearGradient colors={['#0a1b2c', '#081d32', '#06261a']} style={styles.bg}>
+          <View style={styles.navRoot}>
+            <View style={[styles.navContent, { marginLeft: navDrawerOpen ? navExpandedOffset : navCollapsedOffset }]}>
+              <ProfileScreen
+                language={appLanguage}
+                profileName={activeProfile?.displayName ?? t(appLanguage, 'guest_mode')}
+                appName="POKER GOD"
+                xp={progress.xp}
+                handsPlayed={progress.handsPlayed}
+                handsWon={progress.handsWon}
+                recordsCount={handRecordCount}
+                currentZoneName={zoneDisplayName}
+                topLeakLabel={heroLeakLabel(topLeak, appLanguage)}
+                topLeakMission={mission(topLeak, appLanguage)}
+                onResumePlay={handleResumePlay}
+                onOpenAccountCenter={() => setNote(t(appLanguage, 'note_account_center_reserved'))}
+                subscriptionPlanName={l(appLanguage, '本地預覽方案', '本地预览方案', 'Local Preview Plan')}
+                subscriptionStatusText={l(appLanguage, '未綁定商店訂閱', '未绑定商店订阅', 'No store subscription linked')}
+                subscriptionRenewalText={l(appLanguage, '尚未開通', '尚未开通', 'Not activated yet')}
+                onManageSubscription={() => setNote(l(appLanguage, '訂閱入口已預留，後續可接 App Store / Google Play。', '订阅入口已预留，后续可接 App Store / Google Play。', 'Subscription entry reserved. Connect App Store / Google Play later.'))}
+                availableLanguages={appLanguages.map((language) => ({
+                  key: language,
+                  label: appLanguageLabels[language],
+                }))}
+                sfxEnabled={sfxEnabled}
+                aiVoiceAssistEnabled={aiVoiceAssistEnabled}
+                politeMode={politeMode}
+                onChangeLanguage={(language) => {
+                  setAppLanguage(language);
+                  setNote(t(language, 'note_language_switched', { language: appLanguageLabels[language] }));
+                }}
+                onToggleSfx={() => setSfxEnabled((v) => !v)}
+                onToggleAiVoiceAssist={() => setAiVoiceAssistEnabled((v) => !v)}
+                onTogglePoliteMode={() => setPoliteMode((v) => !v)}
+              />
+            </View>
+            <BottomTabBar
+              activeTab={rootTab}
+              items={rootTabItems}
+              onTabChange={handleRootTabChange}
+              open={navDrawerOpen}
+              onOpenChange={setNavDrawerOpen}
+              drawerWidth={NAV_DRAWER_WIDTH}
+              collapsedWidth={NAV_COLLAPSED_WIDTH}
+              safeInsetLeft={navSafeInsetLeft}
+            />
+          </View>
+        </LinearGradient>
+      </SafeAreaView>
+    );
+  }
+
   if (phase === 'lobby') {
     return (
       <SafeAreaView style={styles.safe}>
         <StatusBar style="light" />
         <LinearGradient colors={['#0a1b2c', '#081d32', '#06261a']} style={styles.bg}>
-          <View style={[styles.lobbyScreen, compactLobby && styles.lobbyScreenCompact]}>
+          <View style={styles.navRoot}>
+            <View style={[styles.navContent, { marginLeft: navDrawerOpen ? navExpandedOffset : navCollapsedOffset }]}>
+              <View style={[styles.lobbyScreen, compactLobby && styles.lobbyScreenCompact]}>
             <View pointerEvents="none" style={styles.lobbyAuraA} />
             <View pointerEvents="none" style={styles.lobbyAuraB} />
 
@@ -3490,6 +3841,18 @@ export default function App() {
                 </LinearGradient>
               </View>
             ) : null}
+              </View>
+            </View>
+            <BottomTabBar
+              activeTab={rootTab}
+              items={rootTabItems}
+              onTabChange={handleRootTabChange}
+              open={navDrawerOpen}
+              onOpenChange={setNavDrawerOpen}
+              drawerWidth={NAV_DRAWER_WIDTH}
+              collapsedWidth={NAV_COLLAPSED_WIDTH}
+              safeInsetLeft={navSafeInsetLeft}
+            />
           </View>
         </LinearGradient>
       </SafeAreaView>
@@ -3500,7 +3863,9 @@ export default function App() {
     <SafeAreaView style={styles.safe}>
       <StatusBar style="light" />
       <LinearGradient colors={['#0a1b2c', '#081b2d', '#062215']} style={styles.bg}>
-        <View style={styles.tableScreen} onLayout={handleTableScreenLayout}>
+        <View style={styles.navRoot}>
+          <View style={[styles.navContent, { marginLeft: navDrawerOpen ? navExpandedOffset : navCollapsedOffset }]}>
+            <View style={styles.tableScreen} onLayout={handleTableScreenLayout}>
           <View style={styles.topRow}>
             <View style={styles.brandBlockMini}>
               <Text style={styles.brandText}>POKER GOD</Text>
@@ -4120,7 +4485,7 @@ export default function App() {
           </Animated.View>
         </View>
 
-        <View pointerEvents={missionOpen ? 'auto' : 'none'} style={styles.drawerRoot}>
+            <View pointerEvents={missionOpen ? 'auto' : 'none'} style={styles.drawerRoot}>
           <Animated.View style={[styles.drawerBackdrop, { opacity: missionBackdropOpacity }]}>
             <TouchableOpacity style={styles.drawerBackdropTouch} activeOpacity={1} onPress={() => setMissionOpen(false)} />
           </Animated.View>
@@ -4162,6 +4527,18 @@ export default function App() {
               </View>
             </ScrollView>
           </Animated.View>
+            </View>
+          </View>
+          <BottomTabBar
+            activeTab={rootTab}
+            items={rootTabItems}
+            onTabChange={handleRootTabChange}
+            open={navDrawerOpen}
+            onOpenChange={setNavDrawerOpen}
+            drawerWidth={NAV_DRAWER_WIDTH}
+            collapsedWidth={NAV_COLLAPSED_WIDTH}
+            safeInsetLeft={navSafeInsetLeft}
+          />
         </View>
       </LinearGradient>
     </SafeAreaView>
@@ -4171,6 +4548,8 @@ export default function App() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#0a1b2c' },
   bg: { flex: 1 },
+  navRoot: { flex: 1 },
+  navContent: { flex: 1 },
   wrap: { padding: 14, paddingBottom: 28, gap: 10 },
   tableScreen: { flex: 1, padding: 10, gap: 8 },
   tableCore: { flex: 1, gap: 8, flexDirection: 'row', minHeight: 0 },
