@@ -356,6 +356,37 @@ export interface CoachCreatePlanResponse {
   plan: WeeklyPlan;
 }
 
+export interface CoachDiagnosisItem {
+  leakTag: string;
+  title: string;
+  reason: string;
+  estimatedEvRecoverBb100: number;
+  confidence: LeakConfidence;
+  recommendedDrillTitle: string;
+  priorityScore: number;
+}
+
+export interface CoachDiagnosisResponse {
+  requestId: string;
+  userId: string;
+  generatedAt: string;
+  summary: {
+    topLeakTag: string;
+    estimatedWeeklyEvRecoverBb100: number;
+    completionRatePct: number;
+  };
+  items: CoachDiagnosisItem[];
+}
+
+export interface CoachDiagnosisAdminSummaryResponse {
+  requestId: string;
+  users: number;
+  avgEstimatedWeeklyEvRecoverBb100: number;
+  avgCompletionRatePct: number;
+  topLeakTags: Array<{ tag: string; count: number }>;
+  updatedAt: string;
+}
+
 export type AnalyticsEventName =
   | 'study_node_opened'
   | 'drill_started'

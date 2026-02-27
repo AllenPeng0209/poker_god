@@ -8,6 +8,7 @@ import type { RootTab, RootTabItem } from '../../../navigation/rootTabs';
 import { LearnScreen } from '../../../screens/LearnScreen';
 import { ProfileScreen } from '../../../screens/ProfileScreen';
 import { ReviewScreen } from '../../../screens/ReviewScreen';
+import type { CoachDiagnosisItem } from '@poker-god/contracts';
 import type { HandRecordDetail, HandRecordSummary, LocalProfile } from '../../../storage/localDb';
 import type { ProgressState } from '../../../types/poker';
 
@@ -47,6 +48,9 @@ type RootTabViewProps = {
   rootTabItems: RootTabItem[];
   sfxEnabled: boolean;
   topLeak: keyof ProgressState['leaks'];
+  diagnosisItems: CoachDiagnosisItem[];
+  diagnosisWeeklyRecover: number;
+  diagnosisCompletionRate: number;
   zoneDisplayName: string;
   handleResumePlay: () => void;
   handleRootTabChange: (tab: RootTab) => void;
@@ -82,6 +86,9 @@ export function RootTabView(props: RootTabViewProps) {
     rootTabItems,
     sfxEnabled,
     topLeak,
+    diagnosisItems,
+    diagnosisWeeklyRecover,
+    diagnosisCompletionRate,
     zoneDisplayName,
     handleResumePlay,
     handleRootTabChange,
@@ -199,6 +206,9 @@ export function RootTabView(props: RootTabViewProps) {
                 onToggleSfx={() => setSfxEnabled((v) => !v)}
                 onToggleAiVoiceAssist={() => setAiVoiceAssistEnabled((v) => !v)}
                 onTogglePoliteMode={() => setPoliteMode((v) => !v)}
+                diagnosisItems={diagnosisItems}
+                diagnosisWeeklyRecover={diagnosisWeeklyRecover}
+                diagnosisCompletionRate={diagnosisCompletionRate}
               />
             </View>
             <BottomTabBar

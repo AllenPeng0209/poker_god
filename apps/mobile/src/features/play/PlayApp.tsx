@@ -4,6 +4,7 @@ import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
 import * as Speech from 'expo-speech';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { CoachDiagnosisItem } from '@poker-god/contracts';
 import { Animated, DimensionValue, Easing, GestureResponderEvent, LayoutChangeEvent, Platform, SafeAreaView, ScrollView, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 
 import { BottomTabBar } from '../../components/navigation/BottomTabBar';
@@ -31,6 +32,7 @@ import {
 } from '../../storage/localDb';
 import type { HandRecordDetail, HandRecordSummary, LocalProfile } from '../../storage/localDb';
 import { ActionType, AiProfile, HandState, ProgressState, Street, TablePosition } from '../../types/poker';
+import { fetchCoachDiagnosis } from '../../services/coachDiagnosisApi';
 
 import * as Play from './index';
 import { usePlayDecisionActions } from './hooks/usePlayDecisionActions';
@@ -115,6 +117,9 @@ export default function PlayApp() {
   const [reviewLoading, setReviewLoading] = useState(false);
   const [reviewSelectedId, setReviewSelectedId] = useState<number | null>(null);
   const [reviewSelectedDetail, setReviewSelectedDetail] = useState<HandRecordDetail | null>(null);
+  const [coachDiagnosisItems, setCoachDiagnosisItems] = useState<CoachDiagnosisItem[]>([]);
+  const [coachDiagnosisWeeklyRecover, setCoachDiagnosisWeeklyRecover] = useState(0);
+  const [coachDiagnosisCompletionRate, setCoachDiagnosisCompletionRate] = useState(0);
 
   const [seats, setSeats] = useState<Seat[]>(() => initialSeatsForApp);
   const [buttonSeatId, setButtonSeatId] = useState(HERO_SEAT);
@@ -401,6 +406,28 @@ export default function PlayApp() {
     }
     void loadReviewRecords();
   }, [rootTab, handRecordCount, loadReviewRecords]);
+
+  useEffect(() => {
+    if (rootTab !== 'profile' || !activeProfile) {
+      return;
+    }
+
+    let cancelled = false;
+    void fetchCoachDiagnosis(activeProfile.id)
+      .then((data) => {
+        if (cancelled) return;
+        setCoachDiagnosisItems(data.items);
+        setCoachDiagnosisWeeklyRecover(data.summary.estimatedWeeklyEvRecoverBb100);
+        setCoachDiagnosisCompletionRate(data.summary.completionRatePct);
+      })
+      .catch((error) => {
+        console.warn('Coach diagnosis sync failed', error);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeProfile, rootTab]);
 
   useEffect(() => {
     if (!localDbReady || !activeProfile) {
@@ -777,6 +804,9 @@ export default function PlayApp() {
         rootTabItems={rootTabItems}
         sfxEnabled={sfxEnabled}
         topLeak={topLeak}
+        diagnosisItems={coachDiagnosisItems}
+        diagnosisWeeklyRecover={coachDiagnosisWeeklyRecover}
+        diagnosisCompletionRate={coachDiagnosisCompletionRate}
         zoneDisplayName={zoneDisplayName}
         handleResumePlay={handleResumePlay}
         handleRootTabChange={handleRootTabChange}

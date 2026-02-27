@@ -11,6 +11,8 @@ import type {
   CoachCreateDrillRequest,
   CoachCreatePlanRequest,
   CoachCreatePlanResponse,
+  CoachDiagnosisAdminSummaryResponse,
+  CoachDiagnosisResponse,
   DrillCreateRequest,
   DrillCreateResponse,
   DrillListResponse,
@@ -31,6 +33,8 @@ import {
   coachChat,
   coachCreateDrillAction,
   coachCreatePlanAction,
+  coachDiagnosis,
+  coachDiagnosisAdminSummary,
   completePracticeSession,
   createAnalyzeUpload,
   createDrill,
@@ -328,6 +332,26 @@ app.post<{ Body: CoachCreatePlanRequest }>(
     return result;
   },
 );
+
+app.get<{ Querystring: { userId?: string } }>(
+  '/api/coach/diagnosis',
+  async (
+    request,
+    reply,
+  ): Promise<CoachDiagnosisResponse | ErrorBody> => {
+    const id = requestId();
+    const userId = typeof request.query.userId === 'string' ? request.query.userId.trim() : '';
+    if (!userId) {
+      return badRequest(reply, id, 'missing_user_id', 'userId is required');
+    }
+
+    return coachDiagnosis(id, userId);
+  },
+);
+
+app.get('/api/admin/coach/diagnosis/summary', async (): Promise<CoachDiagnosisAdminSummaryResponse> => {
+  return coachDiagnosisAdminSummary(requestId());
+});
 
 app.post<{ Body: AnalyticsIngestRequest }>(
   '/api/events',

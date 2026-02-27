@@ -1,5 +1,6 @@
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import type { CoachDiagnosisItem } from '@poker-god/contracts';
 
 type AppLanguage = 'zh-TW' | 'zh-CN' | 'en-US';
 type LanguageOption = { key: AppLanguage; label: string };
@@ -29,6 +30,9 @@ type ProfileScreenProps = {
   onToggleSfx: () => void;
   onToggleAiVoiceAssist: () => void;
   onTogglePoliteMode: () => void;
+  diagnosisItems: CoachDiagnosisItem[];
+  diagnosisWeeklyRecover: number;
+  diagnosisCompletionRate: number;
 };
 
 function l(language: AppLanguage, zhTw: string, zhCn: string, en: string): string {
@@ -72,6 +76,9 @@ export function ProfileScreen({
   onToggleSfx,
   onToggleAiVoiceAssist,
   onTogglePoliteMode,
+  diagnosisItems,
+  diagnosisWeeklyRecover,
+  diagnosisCompletionRate,
 }: ProfileScreenProps) {
   const wr = winRate(handsPlayed, handsWon);
 
@@ -109,6 +116,19 @@ export function ProfileScreen({
         <Text style={styles.cardTitle}>{l(language, '當前主要破綻', '当前主要破绽', 'Current Top Leak')}</Text>
         <Text style={styles.leakLabel}>{topLeakLabel}</Text>
         <Text style={styles.cardHint}>{topLeakMission}</Text>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>{l(language, 'AI 教練今日診斷', 'AI 教练今日诊断', 'AI Coach Diagnosis Today')}</Text>
+        <Text style={styles.cardHint}>{l(language, '預估本週可回收 EV', '预估本周可回收 EV', 'Estimated weekly EV recovery')}: {diagnosisWeeklyRecover.toFixed(1)} bb/100</Text>
+        <Text style={styles.cardHint}>{l(language, '近期訓練完成率', '近期训练完成率', 'Recent drill completion rate')}: {diagnosisCompletionRate.toFixed(1)}%</Text>
+        {diagnosisItems.slice(0, 2).map((item) => (
+          <View key={item.leakTag} style={styles.diagRow}>
+            <Text style={styles.diagTitle}>{item.title}</Text>
+            <Text style={styles.diagSub}>{item.reason}</Text>
+            <Text style={styles.diagSub}>{l(language, '推薦訓練', '推荐训练', 'Recommended drill')}: {item.recommendedDrillTitle}</Text>
+          </View>
+        ))}
       </View>
 
       <View style={styles.card}>
@@ -301,6 +321,25 @@ const styles = StyleSheet.create({
     color: '#b8d6e3',
     fontSize: 12,
     lineHeight: 17,
+  },
+  diagRow: {
+    borderWidth: 1,
+    borderColor: '#355d6b',
+    borderRadius: 9,
+    backgroundColor: '#133344',
+    paddingHorizontal: 9,
+    paddingVertical: 8,
+    gap: 3,
+  },
+  diagTitle: {
+    color: '#ecfdff',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  diagSub: {
+    color: '#acd0dc',
+    fontSize: 11,
+    lineHeight: 15,
   },
   accountMetaRow: {
     flexDirection: 'row',

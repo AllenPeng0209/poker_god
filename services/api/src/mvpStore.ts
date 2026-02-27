@@ -12,6 +12,9 @@ import type {
   CoachChatResponse,
   CoachCreatePlanRequest,
   CoachCreatePlanResponse,
+  CoachDiagnosisAdminSummaryResponse,
+  CoachDiagnosisItem,
+  CoachDiagnosisResponse,
   Drill,
   DrillCreateRequest,
   DrillCreateResponse,
@@ -629,6 +632,109 @@ export function coachCreatePlanAction(
   return {
     requestId,
     plan,
+  };
+}
+
+function buildRecommendedDrillTitle(tag: string) {
+  if (tag === 'over_bluff') return 'Flop bluff frequency discipline 20题';
+  if (tag === 'under_bluff') return 'River bluff candidate expansion 20题';
+  if (tag === 'missed_value') return 'Thin value extraction ladder 16题';
+  if (tag === 'over_fold') return 'Bluff-catcher defend threshold 18题';
+  return 'Sizing consistency repair pack 16题';
+}
+
+function estimateCompletionRate(userId: string) {
+  const completed = analyticsEvents.filter(
+    (event) => event.userId === userId && event.eventName === 'drill_completed',
+  ).length;
+  const started = analyticsEvents.filter(
+    (event) => event.userId === userId && event.eventName === 'drill_started',
+  ).length;
+  if (started <= 0) {
+    return 0;
+  }
+  return Number(((completed / started) * 100).toFixed(1));
+}
+
+function buildDiagnosisItems(): CoachDiagnosisItem[] {
+  const parsedHands = Array.from(analyzeUploads.values())
+    .filter((record) => record.upload.status === 'parsed')
+    .flatMap((record) => record.hands);
+
+  const byTag = new Map<string, { count: number; evLossTotal: number }>();
+  parsedHands.forEach((hand) => {
+    hand.tags.forEach((tag) => {
+      const existing = byTag.get(tag) ?? { count: 0, evLossTotal: 0 };
+      byTag.set(tag, {
+        count: existing.count + 1,
+        evLossTotal: existing.evLossTotal + hand.evLossBb100,
+      });
+    });
+  });
+
+  return Array.from(byTag.entries())
+    .map(([tag, value]) => {
+      const avgEvLoss = value.count === 0 ? 0 : value.evLossTotal / value.count;
+      const confidence = confidenceBySample(value.count);
+      const priorityScore = Number((avgEvLoss * Math.log2(value.count + 1) * 8).toFixed(1));
+      return {
+        leakTag: tag,
+        title: `Leak focus: ${tag}`,
+        reason: buildLeakRecommendation(tag),
+        estimatedEvRecoverBb100: Number((avgEvLoss * 0.38).toFixed(1)),
+        confidence,
+        recommendedDrillTitle: buildRecommendedDrillTitle(tag),
+        priorityScore,
+      } satisfies CoachDiagnosisItem;
+    })
+    .sort((left, right) => right.priorityScore - left.priorityScore)
+    .slice(0, 3);
+}
+
+export function coachDiagnosis(requestId: string, userId: string): CoachDiagnosisResponse {
+  const items = buildDiagnosisItems();
+  const topLeakTag = items[0]?.leakTag ?? 'insufficient_data';
+  const completionRatePct = estimateCompletionRate(userId);
+
+  return {
+    requestId,
+    userId,
+    generatedAt: nowIso(),
+    summary: {
+      topLeakTag,
+      estimatedWeeklyEvRecoverBb100: Number(items.reduce((acc, item) => acc + item.estimatedEvRecoverBb100, 0).toFixed(1)),
+      completionRatePct,
+    },
+    items,
+  };
+}
+
+export function coachDiagnosisAdminSummary(requestId: string): CoachDiagnosisAdminSummaryResponse {
+  const users = new Set(analyticsEvents.map((event) => event.userId).filter(Boolean) as string[]);
+  const reports = Array.from(users).map((userId) => coachDiagnosis(requestId, userId));
+  const leakCounts = new Map<string, number>();
+  reports.forEach((report) => {
+    const topTag = report.summary.topLeakTag;
+    leakCounts.set(topTag, (leakCounts.get(topTag) ?? 0) + 1);
+  });
+
+  const avgRecover = reports.length === 0
+    ? 0
+    : Number((reports.reduce((acc, report) => acc + report.summary.estimatedWeeklyEvRecoverBb100, 0) / reports.length).toFixed(1));
+  const avgCompletion = reports.length === 0
+    ? 0
+    : Number((reports.reduce((acc, report) => acc + report.summary.completionRatePct, 0) / reports.length).toFixed(1));
+
+  return {
+    requestId,
+    users: reports.length,
+    avgEstimatedWeeklyEvRecoverBb100: avgRecover,
+    avgCompletionRatePct: avgCompletion,
+    topLeakTags: Array.from(leakCounts.entries())
+      .map(([tag, count]) => ({ tag, count }))
+      .sort((left, right) => right.count - left.count)
+      .slice(0, 5),
+    updatedAt: nowIso(),
   };
 }
 
