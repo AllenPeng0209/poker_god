@@ -38,10 +38,11 @@ The biggest current gap was **no mobile action loop after leak diagnosis**. User
 - Next step: gate behind `EXPO_PUBLIC_COACH_HOMEWORK_V1` + backend env toggle.
 
 ### Push result
-- Pending (to run `git push -u origin pg/hourly-20260228-0442-mobile-homework-loop` after commit).
+- Failed: `git push -u origin pg/hourly-20260228-0442-mobile-homework-loop`
+- Error: `fatal: could not read Username for 'https://github.com': No such device or address`
 
 ### Blockers
-- None at code level; remote auth may still block push depending on runtime credentials.
+- Remote GitHub credentials unavailable in runtime, so branch cannot be pushed from this environment.
 
 ### Next action
 - Connect homework generation to real leak report tags and add reminder notification triggers.
