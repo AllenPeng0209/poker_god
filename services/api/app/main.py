@@ -35,6 +35,7 @@ from .schemas import (
     PracticeSubmitAnswerRequest,
     PracticeSubmitAnswerResponse,
     StudySpotListResponse,
+    StudySpotMatrixBatchResponse,
     StudySpotMatrixResponse,
     TrainingZone,
     TrainingZonesResponse,
@@ -52,6 +53,7 @@ from .services import (
     generate_zen_chat,
     get_analyze_upload,
     get_study_spot_matrix,
+    get_study_spot_matrices,
     ingest_events,
     list_study_spots,
     list_analyze_hands,
@@ -310,6 +312,33 @@ def study_spot_matrix(spot_id: str, response: Response) -> StudySpotMatrixRespon
 
     response.headers["Cache-Control"] = "public, max-age=60, stale-while-revalidate=300"
     return result
+
+
+@app.get("/api/study/spots/matrices", response_model=StudySpotMatrixBatchResponse)
+def study_spot_matrices(
+    response: Response,
+    spot_ids: list[str] = Query(default=[], alias="spotId"),
+) -> StudySpotMatrixBatchResponse | JSONResponse:
+    if not spot_ids:
+        return _error(400, "invalid_spot_ids", "at least one spotId is required")
+    if len(spot_ids) > 24:
+        return _error(400, "too_many_spot_ids", "maximum 24 spotId values allowed")
+
+    try:
+        supabase = get_supabase_client()
+    except RuntimeError:
+        supabase = None
+
+    matrices, missing = get_study_spot_matrices(supabase=supabase, spot_ids=spot_ids)
+    found = list(matrices.keys())
+    response.headers["Cache-Control"] = "public, max-age=60, stale-while-revalidate=300"
+    return StudySpotMatrixBatchResponse(
+        requestId=request_id(),
+        requestedSpotIds=spot_ids,
+        foundSpotIds=found,
+        missingSpotIds=missing,
+        matrices=matrices,
+    )
 
 
 @app.post("/api/zen/chat", response_model=ZenChatResponse)

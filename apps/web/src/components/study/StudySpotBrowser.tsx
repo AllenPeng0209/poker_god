@@ -628,6 +628,41 @@ export function StudySpotBrowser() {
   }, [filteredSpots, selectedSpotId]);
 
   useEffect(() => {
+    const prefetchCandidateIds = filteredSpots
+      .slice(0, 8)
+      .map((spot) => spot.id)
+      .filter((spotId) => !Object.prototype.hasOwnProperty.call(spotMatrixById, spotId));
+
+    if (prefetchCandidateIds.length === 0) {
+      return;
+    }
+
+    let cancelled = false;
+    void apiClient
+      .getStudySpotMatrices(prefetchCandidateIds)
+      .then((response) => {
+        if (cancelled) {
+          return;
+        }
+        setSpotMatrixById((prev) => {
+          const next = { ...prev };
+          for (const spotId of prefetchCandidateIds) {
+            const matrix = response.matrices[spotId] ?? null;
+            next[spotId] = matrix;
+          }
+          return next;
+        });
+      })
+      .catch(() => {
+        // Keep on-demand single fetch path as fallback.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [filteredSpots, spotMatrixById]);
+
+  useEffect(() => {
     if (!selectedSpot) {
       return;
     }

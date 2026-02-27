@@ -93,6 +93,14 @@ export interface StudySpotMatrixResponse {
   hands: StudyHandMatrixItem[];
 }
 
+export interface StudySpotMatrixBatchResponse {
+  requestId: string;
+  requestedSpotIds: string[];
+  foundSpotIds: string[];
+  missingSpotIds: string[];
+  matrices: Record<string, StudySpotMatrixResponse>;
+}
+
 export type ZenChatRole = 'user' | 'assistant';
 
 export interface ZenChatMessage {

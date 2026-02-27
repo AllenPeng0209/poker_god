@@ -4,8 +4,9 @@ import hashlib
 import json
 import os
 import time
-from collections import defaultdict
+from collections import OrderedDict, defaultdict
 from datetime import UTC, datetime, timedelta
+from threading import Lock
 from typing import Any
 from uuid import uuid4
 
@@ -840,6 +841,39 @@ def _build_matrix_hands() -> list[str]:
 
 _MATRIX_HANDS = _build_matrix_hands()
 
+_MATRIX_CACHE_TTL_SECONDS = 300
+_MATRIX_CACHE_MAX_ITEMS = 512
+_matrix_cache: "OrderedDict[str, tuple[float, StudySpotMatrixResponse]]" = OrderedDict()
+_matrix_cache_lock = Lock()
+
+
+def _matrix_cache_key(spot_id: str) -> str:
+    return spot_id.strip().lower()
+
+
+def _get_cached_matrix(spot_id: str) -> StudySpotMatrixResponse | None:
+    key = _matrix_cache_key(spot_id)
+    now = time.time()
+    with _matrix_cache_lock:
+        item = _matrix_cache.get(key)
+        if item is None:
+            return None
+        cached_at, response = item
+        if now - cached_at > _MATRIX_CACHE_TTL_SECONDS:
+            _matrix_cache.pop(key, None)
+            return None
+        _matrix_cache.move_to_end(key)
+        return response.model_copy(deep=True)
+
+
+def _set_cached_matrix(spot_id: str, response: StudySpotMatrixResponse) -> None:
+    key = _matrix_cache_key(spot_id)
+    with _matrix_cache_lock:
+        _matrix_cache[key] = (time.time(), response.model_copy(deep=True))
+        _matrix_cache.move_to_end(key)
+        while len(_matrix_cache) > _MATRIX_CACHE_MAX_ITEMS:
+            _matrix_cache.popitem(last=False)
+
 
 def _hand_strength(hand: str) -> float:
     first = hand[0:1]
@@ -1323,6 +1357,10 @@ def _find_robopoker_spot(spot_id: str) -> StudySpot | None:
 
 
 def get_study_spot_matrix(supabase: Client | None, spot_id: str) -> StudySpotMatrixResponse | None:
+    cached = _get_cached_matrix(spot_id)
+    if cached is not None:
+        return cached
+
     spot: StudySpot | None = None
     source = "seed"
 
@@ -1342,7 +1380,7 @@ def get_study_spot_matrix(supabase: Client | None, spot_id: str) -> StudySpotMat
         return None
 
     actions, hands = _build_hand_strategy_for_spot(spot)
-    return StudySpotMatrixResponse(
+    response = StudySpotMatrixResponse(
         requestId=request_id(),
         spotId=spot.id,
         nodeCode=spot.node.nodeCode,
@@ -1350,6 +1388,33 @@ def get_study_spot_matrix(supabase: Client | None, spot_id: str) -> StudySpotMat
         actions=actions,
         hands=hands,
     )
+    _set_cached_matrix(spot_id=spot.id, response=response)
+    return response.model_copy(deep=True)
+
+
+def get_study_spot_matrices(supabase: Client | None, spot_ids: list[str]) -> tuple[dict[str, StudySpotMatrixResponse], list[str]]:
+    deduped_ids: list[str] = []
+    seen: set[str] = set()
+    for spot_id in spot_ids:
+        normalized = spot_id.strip()
+        if not normalized:
+            continue
+        key = _matrix_cache_key(normalized)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped_ids.append(normalized)
+
+    matrices: dict[str, StudySpotMatrixResponse] = {}
+    missing: list[str] = []
+    for spot_id in deduped_ids:
+        matrix = get_study_spot_matrix(supabase=supabase, spot_id=spot_id)
+        if matrix is None:
+            missing.append(spot_id)
+            continue
+        matrices[spot_id] = matrix
+
+    return matrices, missing
 
 
 def create_drill(supabase: Client, payload: DrillCreateRequest) -> DrillCreateResponse:

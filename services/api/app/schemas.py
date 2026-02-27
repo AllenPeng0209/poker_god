@@ -118,6 +118,14 @@ class StudySpotMatrixResponse(BaseModel):
     hands: list[StudyHandMatrixItem]
 
 
+class StudySpotMatrixBatchResponse(BaseModel):
+    requestId: str
+    requestedSpotIds: list[str]
+    foundSpotIds: list[str]
+    missingSpotIds: list[str]
+    matrices: dict[str, StudySpotMatrixResponse]
+
+
 ZenChatRole = Literal["user", "assistant"]
 
 

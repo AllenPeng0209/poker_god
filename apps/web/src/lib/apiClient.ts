@@ -18,6 +18,7 @@ import type {
   PracticeSessionStartResponse,
   PracticeSubmitAnswerRequest,
   PracticeSubmitAnswerResponse,
+  StudySpotMatrixBatchResponse,
   StudySpotMatrixResponse,
   StudySpotListResponse,
   ZenChatRequest,
@@ -100,6 +101,13 @@ export const apiClient = {
 
   async getStudySpotMatrix(spotId: string): Promise<StudySpotMatrixResponse> {
     return requestJson<StudySpotMatrixResponse>(`/api/study/spots/${spotId}/matrix`);
+  },
+
+  async getStudySpotMatrices(spotIds: string[]): Promise<StudySpotMatrixBatchResponse> {
+    const deduped = Array.from(new Set(spotIds.map((spotId) => spotId.trim()).filter(Boolean)));
+    const query = new URLSearchParams();
+    deduped.forEach((spotId) => query.append('spotId', spotId));
+    return requestJson<StudySpotMatrixBatchResponse>(`/api/study/spots/matrices?${query.toString()}`);
   },
 
   async startPracticeSession(input: PracticeSessionStartRequest): Promise<PracticeSessionStartResponse> {
