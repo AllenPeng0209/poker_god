@@ -26,6 +26,16 @@ export function ReportsWorkbench() {
       relatedTag: string;
     }>
   >([]);
+  const [coachHealth, setCoachHealth] = useState<{
+    totalRequests: number;
+    successRatePct: number;
+    fallbackRatePct: number;
+    p50LatencyMs: number;
+    p95LatencyMs: number;
+    byProvider: Record<string, number>;
+    topLeakTags: Array<{ tag: string; count: number }>;
+    updatedAt: string;
+  } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -33,16 +43,19 @@ export function ReportsWorkbench() {
       setLoading(true);
       setError(null);
       try {
-        const response = await apiClient.getLeakReport(windowDays);
+        const [response, telemetry] = await Promise.all([apiClient.getLeakReport(windowDays), apiClient.getCoachTelemetry()]);
         if (cancelled) return;
         setItems(response.items);
         setGeneratedAt(response.generatedAt);
+        setCoachHealth(telemetry.summary);
         trackEvent('report_opened', {
           module: 'reports',
           requestId: response.requestId,
           payload: {
             windowDays,
             itemCount: response.items.length,
+            coachP95LatencyMs: telemetry.summary.p95LatencyMs,
+            coachFallbackRatePct: telemetry.summary.fallbackRatePct,
           },
         });
       } catch (loadError) {
@@ -119,6 +132,50 @@ export function ReportsWorkbench() {
               </li>
             ))}
           </ul>
+        ) : null}
+      </article>
+
+      <article className="mvp-card" aria-live="polite">
+        <h2>Coach Reliability Monitor (Admin)</h2>
+        {!coachHealth ? <p className="mvp-muted">Waiting for coach telemetry...</p> : null}
+        {coachHealth ? (
+          <>
+            <p className="mvp-muted">Updated: {coachHealth.updatedAt}</p>
+            <ul className="mvp-report-list">
+              <li>
+                <div className="mvp-report-list__title">
+                  <strong>Latency</strong>
+                  <span>p50 {coachHealth.p50LatencyMs}ms · p95 {coachHealth.p95LatencyMs}ms</span>
+                </div>
+                <p>Target p95 under 1200ms for in-session coaching flow.</p>
+              </li>
+              <li>
+                <div className="mvp-report-list__title">
+                  <strong>Availability / Fallback</strong>
+                  <span>{coachHealth.successRatePct}% success · {coachHealth.fallbackRatePct}% fallback</span>
+                </div>
+                <p>Total sampled requests: {coachHealth.totalRequests}</p>
+              </li>
+              <li>
+                <div className="mvp-report-list__title">
+                  <strong>Provider Mix</strong>
+                  <span>{Object.entries(coachHealth.byProvider).map(([provider, count]) => `${provider}:${count}`).join(' · ') || 'No traffic yet'}</span>
+                </div>
+                <p>Use this to detect provider regressions and unexpected heuristic-only periods.</p>
+              </li>
+              <li>
+                <div className="mvp-report-list__title">
+                  <strong>Top leak tags from coach sessions</strong>
+                  <span>
+                    {coachHealth.topLeakTags.length > 0
+                      ? coachHealth.topLeakTags.map((item) => `${item.tag}(${item.count})`).join(' · ')
+                      : 'No leak tags yet'}
+                  </span>
+                </div>
+                <p>Signals where lesson-pipeline content should expand first.</p>
+              </li>
+            </ul>
+          </>
         ) : null}
       </article>
 

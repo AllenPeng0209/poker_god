@@ -115,6 +115,31 @@ export interface ZenChatResponse {
   suggestions: string[];
   provider: 'heuristic' | 'openai' | 'qwen' | 'fallback';
   createdAt: string;
+  memorySummary?: string;
+  leakSignals?: ZenCoachLeakSignal[];
+  homework?: ZenCoachHomeworkTask[];
+}
+
+export interface CoachTelemetrySummary {
+  windowSize: number;
+  totalRequests: number;
+  successRatePct: number;
+  fallbackRatePct: number;
+  p50LatencyMs: number;
+  p95LatencyMs: number;
+  byProvider: Record<string, number>;
+  topLeakTags: Array<{ tag: ZenCoachLeakSignal['tag']; count: number }>;
+  lastError?: {
+    code: string;
+    message: string;
+    at: string;
+  };
+  updatedAt: string;
+}
+
+export interface CoachTelemetryResponse {
+  requestId: string;
+  summary: CoachTelemetrySummary;
 }
 
 export type SourceType = 'study' | 'analyze' | 'coach' | 'manual';

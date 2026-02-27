@@ -6,6 +6,7 @@ import type {
   AnalyzeUploadResponse,
   CoachChatRequest,
   CoachChatResponse,
+  CoachTelemetryResponse,
   CoachCreateDrillRequest,
   CoachCreatePlanRequest,
   CoachCreatePlanResponse,
@@ -161,6 +162,10 @@ export const apiClient = {
       method: 'POST',
       body: JSON.stringify(input),
     });
+  },
+
+  async getCoachTelemetry(): Promise<CoachTelemetryResponse> {
+    return requestJson<CoachTelemetryResponse>('/api/admin/coach/health');
   },
 
   async coachChat(input: CoachChatRequest): Promise<CoachChatResponse> {

@@ -3,6 +3,7 @@ import cors from '@fastify/cors';
 import type {
   AnalyticsIngestRequest,
   AnalyticsIngestResponse,
+  CoachTelemetryResponse,
   AnalyzeHandsResponse,
   AnalyzeUploadCreateRequest,
   AnalyzeUploadResponse,
@@ -42,6 +43,7 @@ import {
   submitPracticeAnswer,
 } from './mvpStore';
 import { generateZenChat } from './zenChat';
+import { getCoachTelemetrySummary, trackCoachFailure, trackCoachSuccess } from './coachTelemetry';
 
 type ErrorBody = {
   code: string;
@@ -111,12 +113,50 @@ app.post<{ Body: ZenChatRequest }>(
       return badRequest(reply, id, 'invalid_message', 'message must be between 1 and 2000 chars');
     }
 
-    return generateZenChat({
-      ...body,
-      message,
-    });
+    const startedAt = Date.now();
+
+    try {
+      const result = await generateZenChat({
+        ...body,
+        message,
+      });
+
+      trackCoachSuccess({
+        response: result,
+        latencyMs: Date.now() - startedAt,
+        meta: {
+          route: typeof body.context?.route === 'string' ? body.context.route : undefined,
+        },
+      });
+
+      return result;
+    } catch (error) {
+      const messageText = error instanceof Error ? error.message : 'unknown zen chat error';
+      trackCoachFailure({
+        code: 'zen_chat_failed',
+        message: messageText,
+        latencyMs: Date.now() - startedAt,
+        meta: {
+          route: typeof body.context?.route === 'string' ? body.context.route : undefined,
+        },
+      });
+      request.log.error({ err: error }, 'zen chat generation failed');
+      reply.code(500);
+      return {
+        code: 'zen_chat_failed',
+        message: 'zen chat generation failed',
+        requestId: id,
+      };
+    }
   },
 );
+
+app.get('/api/admin/coach/health', async (): Promise<CoachTelemetryResponse> => {
+  return {
+    requestId: requestId(),
+    summary: getCoachTelemetrySummary(),
+  };
+});
 
 app.get('/api/practice/drills', async (): Promise<DrillListResponse> => {
   return listDrills(requestId());
