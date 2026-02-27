@@ -382,6 +382,26 @@ class CoachCreatePlanResponse(BaseModel):
     plan: WeeklyPlan
 
 
+class CoachEndpointReliabilityItem(BaseModel):
+    endpoint: str
+    calls: int
+    errors: int
+    errorRatePct: float
+    p50LatencyMs: int
+    p95LatencyMs: int
+    healthy: bool
+
+
+class CoachReliabilityAdminSummaryResponse(BaseModel):
+    requestId: str
+    generatedAt: str
+    windowLabel: Literal["runtime"]
+    totalCalls: int
+    errorBudgetRemainingPct: float
+    slowEndpointCount: int
+    endpoints: list[CoachEndpointReliabilityItem]
+
+
 AnalyticsEventName = Literal[
     "study_node_opened",
     "drill_started",

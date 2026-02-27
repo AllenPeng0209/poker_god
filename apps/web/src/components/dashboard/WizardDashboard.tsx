@@ -1,6 +1,8 @@
 'use client';
 
 import { useI18n } from '@/components/i18n/I18nProvider';
+import { apiClient } from '@/lib/apiClient';
+import { useEffect, useState } from 'react';
 
 type DashboardModule = {
   id: string;
@@ -9,45 +11,23 @@ type DashboardModule = {
   badgeKey?: string;
 };
 
+type ReliabilitySummary = {
+  totalCalls: number;
+  errorBudgetRemainingPct: number;
+  slowEndpointCount: number;
+  endpoints: Array<{ endpoint: string; p95LatencyMs: number; errorRatePct: number }>;
+};
+
 const DASHBOARD_MODULES: DashboardModule[] = [
-  {
-    id: 'study',
-    tone: 'mint'
-  },
-  {
-    id: 'trainer',
-    tone: 'blue',
-    active: true
-  },
-  {
-    id: 'uploads',
-    tone: 'gold'
-  },
-  {
-    id: 'customSolutions',
-    tone: 'mint'
-  },
-  {
-    id: 'rangeBuilder',
-    tone: 'blue'
-  },
-  {
-    id: 'hands',
-    tone: 'gold',
-    badgeKey: 'dashboard.module.hands.badge'
-  },
-  {
-    id: 'customReports',
-    tone: 'mint'
-  },
-  {
-    id: 'drills',
-    tone: 'blue'
-  },
-  {
-    id: 'coaching',
-    tone: 'mint'
-  }
+  { id: 'study', tone: 'mint' },
+  { id: 'trainer', tone: 'blue', active: true },
+  { id: 'uploads', tone: 'gold' },
+  { id: 'customSolutions', tone: 'mint' },
+  { id: 'rangeBuilder', tone: 'blue' },
+  { id: 'hands', tone: 'gold', badgeKey: 'dashboard.module.hands.badge' },
+  { id: 'customReports', tone: 'mint' },
+  { id: 'drills', tone: 'blue' },
+  { id: 'coaching', tone: 'mint' }
 ];
 
 const TRAINER_STATS = [
@@ -60,6 +40,25 @@ const TRAINER_STATS = [
 
 export function WizardDashboard() {
   const { t } = useI18n();
+  const [reliability, setReliability] = useState<ReliabilitySummary | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    apiClient.getCoachReliabilityAdminSummary()
+      .then((summary) => {
+        if (!mounted) return;
+        setReliability(summary);
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setReliability(null);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const hottestEndpoint = reliability?.endpoints[0];
 
   return (
     <section className="wizard-dashboard">
@@ -73,11 +72,7 @@ export function WizardDashboard() {
             <button
               type="button"
               key={module.id}
-              className={
-                module.active
-                  ? `module-tile module-tile--${module.tone} module-tile--active`
-                  : `module-tile module-tile--${module.tone}`
-              }
+              className={module.active ? `module-tile module-tile--${module.tone} module-tile--active` : `module-tile module-tile--${module.tone}`}
             >
               <span className="module-tile__icon">{t(`dashboard.module.${module.id}.title`).slice(0, 1)}</span>
               <span className="module-tile__body">
@@ -98,22 +93,10 @@ export function WizardDashboard() {
 
           <div className="stats-layout">
             <div className="stats-kpis">
-              <div>
-                <span>{t('dashboard.stats.kpi.hands')}</span>
-                <strong>72</strong>
-              </div>
-              <div>
-                <span>{t('dashboard.stats.kpi.moves')}</span>
-                <strong>109</strong>
-              </div>
-              <div>
-                <span>{t('dashboard.stats.kpi.mistakes')}</span>
-                <strong>18</strong>
-              </div>
-              <div>
-                <span>{t('dashboard.stats.kpi.score')}</span>
-                <strong>57%</strong>
-              </div>
+              <div><span>{t('dashboard.stats.kpi.hands')}</span><strong>72</strong></div>
+              <div><span>{t('dashboard.stats.kpi.moves')}</span><strong>109</strong></div>
+              <div><span>{t('dashboard.stats.kpi.mistakes')}</span><strong>18</strong></div>
+              <div><span>{t('dashboard.stats.kpi.score')}</span><strong>57%</strong></div>
             </div>
 
             <div className="stats-bars">
@@ -121,10 +104,7 @@ export function WizardDashboard() {
                 <div key={stat.labelKey} className="stats-bar-row">
                   <span className={`stats-bar-row__label stats-bar-row__label--${stat.tone}`}>{t(stat.labelKey)}</span>
                   <div className="stats-bar-row__track">
-                    <div
-                      className={`stats-bar-row__fill stats-bar-row__fill--${stat.tone}`}
-                      style={{ width: `${Math.max(stat.value, 4)}%` }}
-                    />
+                    <div className={`stats-bar-row__fill stats-bar-row__fill--${stat.tone}`} style={{ width: `${Math.max(stat.value, 4)}%` }} />
                   </div>
                   <strong>{stat.value}</strong>
                 </div>
@@ -135,27 +115,20 @@ export function WizardDashboard() {
 
         <article className="panel panel--stats panel--compact">
           <header className="panel__header">
-            <h3>{t('dashboard.stats.analyzerTitle')}</h3>
+            <h3>Coach Reliability</h3>
           </header>
 
           <div className="stats-kpis stats-kpis--compact">
-            <div>
-              <span>{t('dashboard.stats.kpi.hands')}</span>
-              <strong>0</strong>
-            </div>
-            <div>
-              <span>{t('dashboard.stats.kpi.moves')}</span>
-              <strong>0</strong>
-            </div>
-            <div>
-              <span>{t('dashboard.stats.kpi.mistakes')}</span>
-              <strong>0</strong>
-            </div>
-            <div>
-              <span>{t('dashboard.stats.kpi.score')}</span>
-              <strong>0</strong>
-            </div>
+            <div><span>Total Calls</span><strong>{reliability?.totalCalls ?? 0}</strong></div>
+            <div><span>Error Budget Left</span><strong>{reliability ? `${reliability.errorBudgetRemainingPct}%` : '0%'}</strong></div>
+            <div><span>Slow Endpoints</span><strong>{reliability?.slowEndpointCount ?? 0}</strong></div>
+            <div><span>Worst p95</span><strong>{hottestEndpoint ? `${hottestEndpoint.p95LatencyMs}ms` : 'n/a'}</strong></div>
           </div>
+          {hottestEndpoint ? (
+            <p style={{ marginTop: 12, fontSize: 12, color: '#8f8fa8' }}>
+              {hottestEndpoint.endpoint} · error {hottestEndpoint.errorRatePct}%
+            </p>
+          ) : null}
         </article>
       </div>
     </section>

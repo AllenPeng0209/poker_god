@@ -25,6 +25,8 @@ from .schemas import (
     CoachCreateDrillRequest,
     CoachCreatePlanRequest,
     CoachCreatePlanResponse,
+    CoachEndpointReliabilityItem,
+    CoachReliabilityAdminSummaryResponse,
     CoachSection,
     Drill,
     DrillCreateRequest,
@@ -71,6 +73,77 @@ def _safe_int(value: Any, default: int = 0) -> int:
         return int(value)
     except (TypeError, ValueError):
         return default
+
+
+_COACH_ENDPOINT_TELEMETRY: list[dict[str, Any]] = []
+
+
+def record_coach_endpoint_telemetry(endpoint: str, latency_ms: float, ok: bool) -> None:
+    _COACH_ENDPOINT_TELEMETRY.append(
+        {
+            "endpoint": endpoint,
+            "latencyMs": max(0.0, float(latency_ms)),
+            "ok": bool(ok),
+            "capturedAt": now_iso(),
+        }
+    )
+    if len(_COACH_ENDPOINT_TELEMETRY) > 5000:
+        del _COACH_ENDPOINT_TELEMETRY[: len(_COACH_ENDPOINT_TELEMETRY) - 5000]
+
+
+def _percentile(values: list[float], p: float) -> int:
+    if not values:
+        return 0
+    ranked = sorted(values)
+    idx = min(len(ranked) - 1, int((len(ranked) - 1) * p))
+    return int(round(ranked[idx]))
+
+
+def get_coach_reliability_admin_summary() -> CoachReliabilityAdminSummaryResponse:
+    buckets: dict[str, dict[str, Any]] = {}
+    for item in _COACH_ENDPOINT_TELEMETRY:
+        endpoint = str(item.get("endpoint", ""))
+        if not endpoint:
+            continue
+        current = buckets.setdefault(endpoint, {"latencies": [], "errors": 0})
+        current["latencies"].append(float(item.get("latencyMs", 0.0)))
+        if not bool(item.get("ok", False)):
+            current["errors"] += 1
+
+    rows: list[CoachEndpointReliabilityItem] = []
+    for endpoint, value in buckets.items():
+        latencies = value["latencies"]
+        calls = len(latencies)
+        errors = int(value["errors"])
+        error_rate_pct = round((errors / calls) * 100, 2) if calls else 0.0
+        p50 = _percentile(latencies, 0.5)
+        p95 = _percentile(latencies, 0.95)
+        rows.append(
+            CoachEndpointReliabilityItem(
+                endpoint=endpoint,
+                calls=calls,
+                errors=errors,
+                errorRatePct=error_rate_pct,
+                p50LatencyMs=p50,
+                p95LatencyMs=p95,
+                healthy=error_rate_pct <= 1.0 and p95 <= 800,
+            )
+        )
+
+    rows.sort(key=lambda row: row.p95LatencyMs, reverse=True)
+    total_calls = sum(row.calls for row in rows)
+    total_errors = sum(row.errors for row in rows)
+    error_rate = (total_errors / total_calls) if total_calls else 0.0
+
+    return CoachReliabilityAdminSummaryResponse(
+        requestId=request_id(),
+        generatedAt=now_iso(),
+        windowLabel="runtime",
+        totalCalls=total_calls,
+        errorBudgetRemainingPct=round((max(0.0, 0.01 - error_rate) / 0.01) * 100, 1),
+        slowEndpointCount=sum(1 for row in rows if row.p95LatencyMs > 800),
+        endpoints=rows,
+    )
 
 
 _STUDY_SPOT_SEED: list[dict[str, Any]] = [

@@ -9,6 +9,7 @@ import type {
   CoachCreateDrillRequest,
   CoachCreatePlanRequest,
   CoachCreatePlanResponse,
+  CoachReliabilityAdminSummaryResponse,
   DrillCreateRequest,
   DrillCreateResponse,
   DrillListResponse,
@@ -182,6 +183,10 @@ export const apiClient = {
       method: 'POST',
       body: JSON.stringify(input),
     });
+  },
+
+  async getCoachReliabilityAdminSummary(): Promise<CoachReliabilityAdminSummaryResponse> {
+    return requestJson<CoachReliabilityAdminSummaryResponse>('/api/admin/coach/reliability');
   },
 
   async ingestEvents(events: AnalyticsEvent[]): Promise<AnalyticsIngestResponse> {

@@ -11,6 +11,7 @@ import type {
   CoachCreateDrillRequest,
   CoachCreatePlanRequest,
   CoachCreatePlanResponse,
+  CoachReliabilityAdminSummaryResponse,
   DrillCreateRequest,
   DrillCreateResponse,
   DrillListResponse,
@@ -35,9 +36,11 @@ import {
   createAnalyzeUpload,
   createDrill,
   getAnalyzeUpload,
+  getCoachReliabilityAdminSummary,
   ingestAnalyticsEvents,
   listAnalyzeHands,
   listDrills,
+  recordCoachEndpointTelemetry,
   startPracticeSession,
   submitPracticeAnswer,
 } from './mvpStore';
@@ -74,6 +77,18 @@ function notFound(reply: FastifyReply, id: string, code: string, message: string
 function conflict(reply: FastifyReply, id: string, code: string, message: string): ErrorBody {
   reply.code(409);
   return { code, message, requestId: id };
+}
+
+async function withCoachTelemetry<T>(endpoint: string, handler: () => Promise<T> | T): Promise<T> {
+  const startedAt = Date.now();
+  try {
+    const result = await handler();
+    recordCoachEndpointTelemetry(endpoint, Date.now() - startedAt, true);
+    return result;
+  } catch (error) {
+    recordCoachEndpointTelemetry(endpoint, Date.now() - startedAt, false);
+    throw error;
+  }
 }
 
 app.get('/health', async (): Promise<HealthResponse> => {
@@ -271,7 +286,7 @@ app.post<{ Body: CoachChatRequest }>(
   async (
     request,
     reply,
-  ): Promise<CoachChatResponse | ErrorBody> => {
+  ): Promise<CoachChatResponse | ErrorBody> => withCoachTelemetry('/api/coach/chat', () => {
     const id = requestId();
     const body = request.body;
     if (!body || typeof body.conversationId !== 'string' || typeof body.message !== 'string') {
@@ -284,7 +299,7 @@ app.post<{ Body: CoachChatRequest }>(
     }
 
     return coachChat(id, { ...body, message });
-  },
+  }),
 );
 
 app.post<{ Body: CoachCreateDrillRequest }>(
@@ -292,7 +307,7 @@ app.post<{ Body: CoachCreateDrillRequest }>(
   async (
     request,
     reply,
-  ): Promise<DrillCreateResponse | ErrorBody> => {
+  ): Promise<DrillCreateResponse | ErrorBody> => withCoachTelemetry('/api/coach/actions/create-drill', () => {
     const id = requestId();
     const body = request.body;
     if (!body || typeof body.conversationId !== 'string' || typeof body.itemCount !== 'number') {
@@ -305,7 +320,7 @@ app.post<{ Body: CoachCreateDrillRequest }>(
     }
 
     return result;
-  },
+  }),
 );
 
 app.post<{ Body: CoachCreatePlanRequest }>(
@@ -313,7 +328,7 @@ app.post<{ Body: CoachCreatePlanRequest }>(
   async (
     request,
     reply,
-  ): Promise<CoachCreatePlanResponse | ErrorBody> => {
+  ): Promise<CoachCreatePlanResponse | ErrorBody> => withCoachTelemetry('/api/coach/actions/create-plan', () => {
     const id = requestId();
     const body = request.body;
     if (!body || typeof body.conversationId !== 'string' || typeof body.weekStart !== 'string') {
@@ -326,8 +341,12 @@ app.post<{ Body: CoachCreatePlanRequest }>(
     }
 
     return result;
-  },
+  }),
 );
+
+app.get('/api/admin/coach/reliability', async (): Promise<CoachReliabilityAdminSummaryResponse> => {
+  return getCoachReliabilityAdminSummary(requestId());
+});
 
 app.post<{ Body: AnalyticsIngestRequest }>(
   '/api/events',

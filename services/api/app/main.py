@@ -23,6 +23,7 @@ from .schemas import (
     CoachCreateDrillRequest,
     CoachCreatePlanRequest,
     CoachCreatePlanResponse,
+    CoachReliabilityAdminSummaryResponse,
     DrillCreateRequest,
     DrillCreateResponse,
     DrillListResponse,
@@ -53,9 +54,11 @@ from .services import (
     get_analyze_upload,
     get_study_spot_matrix,
     ingest_events,
+    get_coach_reliability_admin_summary,
     list_study_spots,
     list_analyze_hands,
     list_drills,
+    record_coach_endpoint_telemetry,
     process_analyze_upload,
     request_id,
     start_practice_session,
@@ -124,6 +127,17 @@ def _requires_api_key(request: Request) -> bool:
 
 def _rate_limit_key(request: Request) -> str:
     return f"{_client_ip(request)}:{request.method}:{request.url.path}"
+
+
+def _with_coach_telemetry(endpoint: str, fn):  # type: ignore[no-untyped-def]
+    started = perf_counter()
+    try:
+        result = fn()
+        record_coach_endpoint_telemetry(endpoint, (perf_counter() - started) * 1000, True)
+        return result
+    except Exception:
+        record_coach_endpoint_telemetry(endpoint, (perf_counter() - started) * 1000, False)
+        raise
 
 
 @app.middleware("http")
@@ -400,28 +414,42 @@ def reports_leaks(window_days: int = Query(default=30, alias="windowDays")) -> L
 
 @app.post("/api/coach/chat", response_model=CoachChatResponse)
 def coach_chat_endpoint(payload: CoachChatRequest) -> CoachChatResponse | JSONResponse:
-    message = payload.message.strip()
-    if not message:
-        return _error(400, "invalid_message", "message must be between 1 and 2000 chars")
-    return coach_chat(payload.model_copy(update={"message": message}))
+    def _run() -> CoachChatResponse | JSONResponse:
+        message = payload.message.strip()
+        if not message:
+            return _error(400, "invalid_message", "message must be between 1 and 2000 chars")
+        return coach_chat(payload.model_copy(update={"message": message}))
+
+    return _with_coach_telemetry("/api/coach/chat", _run)
 
 
 @app.post("/api/coach/actions/create-drill", response_model=DrillCreateResponse)
 def coach_create_drill(payload: CoachCreateDrillRequest) -> DrillCreateResponse | JSONResponse:
-    supabase = get_supabase_client()
-    result = coach_create_drill_action(supabase, payload)
-    if isinstance(result, str):
-        return _error(409, "confirmation_required", result)
-    return result
+    def _run() -> DrillCreateResponse | JSONResponse:
+        supabase = get_supabase_client()
+        result = coach_create_drill_action(supabase, payload)
+        if isinstance(result, str):
+            return _error(409, "confirmation_required", result)
+        return result
+
+    return _with_coach_telemetry("/api/coach/actions/create-drill", _run)
 
 
 @app.post("/api/coach/actions/create-plan", response_model=CoachCreatePlanResponse)
 def coach_create_plan(payload: CoachCreatePlanRequest) -> CoachCreatePlanResponse | JSONResponse:
-    supabase = get_supabase_client()
-    result = coach_create_plan_action(supabase, payload)
-    if isinstance(result, str):
-        return _error(409, "confirmation_required", result)
-    return result
+    def _run() -> CoachCreatePlanResponse | JSONResponse:
+        supabase = get_supabase_client()
+        result = coach_create_plan_action(supabase, payload)
+        if isinstance(result, str):
+            return _error(409, "confirmation_required", result)
+        return result
+
+    return _with_coach_telemetry("/api/coach/actions/create-plan", _run)
+
+
+@app.get("/api/admin/coach/reliability", response_model=CoachReliabilityAdminSummaryResponse)
+def admin_coach_reliability() -> CoachReliabilityAdminSummaryResponse:
+    return get_coach_reliability_admin_summary()
 
 
 @app.post("/api/events", response_model=AnalyticsIngestResponse)

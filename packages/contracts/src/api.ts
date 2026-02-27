@@ -356,6 +356,68 @@ export interface CoachCreatePlanResponse {
   plan: WeeklyPlan;
 }
 
+export interface CoachHomeworkTask {
+  id: string;
+  title: string;
+  reason: string;
+  leakTag: string;
+  targetDrillId: string;
+  estimatedMinutes: number;
+  priorityScore: number;
+  dueAt: string;
+  completed: boolean;
+}
+
+export interface CoachHomeworkFeedResponse {
+  requestId: string;
+  userId: string;
+  generatedAt: string;
+  tasks: CoachHomeworkTask[];
+  streakDays: number;
+}
+
+export interface CoachHomeworkStartRequest {
+  userId: string;
+  taskId: string;
+  source?: 'mobile_profile' | 'coach_chat' | 'admin_recommendation';
+}
+
+export interface CoachHomeworkStartResponse {
+  requestId: string;
+  accepted: boolean;
+  startedAt: string;
+}
+
+export interface CoachHomeworkAdminSummaryResponse {
+  requestId: string;
+  generatedAt: string;
+  activeUsers: number;
+  completionRatePct: number;
+  startRatePct: number;
+  avgPriorityScore: number;
+  topLeakTag: string;
+}
+
+export interface CoachEndpointReliabilityItem {
+  endpoint: string;
+  calls: number;
+  errors: number;
+  errorRatePct: number;
+  p50LatencyMs: number;
+  p95LatencyMs: number;
+  healthy: boolean;
+}
+
+export interface CoachReliabilityAdminSummaryResponse {
+  requestId: string;
+  generatedAt: string;
+  windowLabel: 'runtime';
+  totalCalls: number;
+  errorBudgetRemainingPct: number;
+  slowEndpointCount: number;
+  endpoints: CoachEndpointReliabilityItem[];
+}
+
 export type AnalyticsEventName =
   | 'study_node_opened'
   | 'drill_started'
@@ -363,7 +425,8 @@ export type AnalyticsEventName =
   | 'hand_uploaded'
   | 'report_opened'
   | 'coach_message_sent'
-  | 'coach_action_executed';
+  | 'coach_action_executed'
+  | 'coach_homework_started';
 
 export interface AnalyticsEvent {
   eventName: AnalyticsEventName;
