@@ -109,12 +109,28 @@ export interface ZenChatRequest {
   context?: Record<string, unknown>;
 }
 
+export interface ZenCoachLeakSignal {
+  tag: 'over_bluff' | 'under_bluff' | 'missed_value' | 'over_fold' | 'size_mismatch';
+  confidence: 'low' | 'medium' | 'high';
+  reason: string;
+}
+
+export interface ZenCoachHomeworkTask {
+  id: string;
+  title: string;
+  goal: string;
+  kpi: string;
+}
+
 export interface ZenChatResponse {
   sessionId: string;
   reply: string;
   suggestions: string[];
   provider: 'heuristic' | 'openai' | 'qwen' | 'fallback';
   createdAt: string;
+  memorySummary?: string;
+  leakSignals?: ZenCoachLeakSignal[];
+  homework?: ZenCoachHomeworkTask[];
 }
 
 export type SourceType = 'study' | 'analyze' | 'coach' | 'manual';

@@ -423,16 +423,39 @@ export function AICoachDrawer({ pathname, isOpen, width, onOpenChange, onWidthCh
 
       setProvider(response.provider);
       setSuggestions(response.suggestions);
-      setMessages((prev) => [
-        ...prev.slice(-40),
-        {
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          content: response.reply,
-          provider: response.provider,
-          createdAt: response.createdAt,
-        },
-      ]);
+      setMessages((prev) => {
+        const next: ChatMessage[] = [
+          ...prev.slice(-40),
+          {
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: response.reply,
+            provider: response.provider,
+            createdAt: response.createdAt,
+          },
+        ];
+
+        if (response.memorySummary) {
+          next.push({
+            id: crypto.randomUUID(),
+            role: 'system',
+            content: locale === 'zh-CN' ? `记忆摘要：${response.memorySummary}` : `Memory: ${response.memorySummary}`,
+            createdAt: response.createdAt,
+          });
+        }
+
+        if (response.homework && response.homework.length > 0) {
+          const lines = response.homework.map((task, index) => `${index + 1}. ${task.title} — ${task.kpi}`).join('\n');
+          next.push({
+            id: crypto.randomUUID(),
+            role: 'system',
+            content: locale === 'zh-CN' ? `个性化作业：\n${lines}` : `Personalized homework:\n${lines}`,
+            createdAt: response.createdAt,
+          });
+        }
+
+        return next;
+      });
       trackEvent('coach_message_sent', {
         module: 'coach',
         payload: {
