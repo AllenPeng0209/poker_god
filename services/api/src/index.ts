@@ -11,6 +11,10 @@ import type {
   CoachCreateDrillRequest,
   CoachCreatePlanRequest,
   CoachCreatePlanResponse,
+  CoachHomeworkAdminSummaryResponse,
+  CoachHomeworkCompleteRequest,
+  CoachHomeworkCompleteResponse,
+  CoachHomeworkListResponse,
   DrillCreateRequest,
   DrillCreateResponse,
   DrillListResponse,
@@ -31,12 +35,15 @@ import {
   coachChat,
   coachCreateDrillAction,
   coachCreatePlanAction,
+  coachHomeworkAdminSummary,
+  completeCoachHomework,
   completePracticeSession,
   createAnalyzeUpload,
   createDrill,
   getAnalyzeUpload,
   ingestAnalyticsEvents,
   listAnalyzeHands,
+  listCoachHomework,
   listDrills,
   startPracticeSession,
   submitPracticeAnswer,
@@ -328,6 +335,47 @@ app.post<{ Body: CoachCreatePlanRequest }>(
     return result;
   },
 );
+
+app.get<{ Querystring: { userId?: string } }>(
+  '/api/coach/homework',
+  async (
+    request,
+    reply,
+  ): Promise<CoachHomeworkListResponse | ErrorBody> => {
+    const id = requestId();
+    const userId = typeof request.query.userId === 'string' ? request.query.userId.trim() : '';
+    if (!userId) {
+      return badRequest(reply, id, 'missing_user_id', 'userId is required');
+    }
+
+    return listCoachHomework(id, userId);
+  },
+);
+
+app.post<{ Params: { taskId: string }; Body: CoachHomeworkCompleteRequest }>(
+  '/api/coach/homework/:taskId/complete',
+  async (
+    request,
+    reply,
+  ): Promise<CoachHomeworkCompleteResponse | ErrorBody> => {
+    const id = requestId();
+    const userId = typeof request.body?.userId === 'string' ? request.body.userId.trim() : '';
+    if (!userId) {
+      return badRequest(reply, id, 'missing_user_id', 'userId is required');
+    }
+
+    const result = completeCoachHomework(id, userId, request.params.taskId);
+    if (!result) {
+      return notFound(reply, id, 'task_not_found', `task ${request.params.taskId} not found`);
+    }
+
+    return result;
+  },
+);
+
+app.get('/api/admin/coach/homework/summary', async (): Promise<CoachHomeworkAdminSummaryResponse> => {
+  return coachHomeworkAdminSummary(requestId());
+});
 
 app.post<{ Body: AnalyticsIngestRequest }>(
   '/api/events',

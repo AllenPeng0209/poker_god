@@ -8,6 +8,7 @@ import type { RootTab, RootTabItem } from '../../../navigation/rootTabs';
 import { LearnScreen } from '../../../screens/LearnScreen';
 import { ProfileScreen } from '../../../screens/ProfileScreen';
 import { ReviewScreen } from '../../../screens/ReviewScreen';
+import type { CoachHomeworkTask } from '@poker-god/contracts';
 import type { HandRecordDetail, HandRecordSummary, LocalProfile } from '../../../storage/localDb';
 import type { ProgressState } from '../../../types/poker';
 
@@ -47,11 +48,14 @@ type RootTabViewProps = {
   rootTabItems: RootTabItem[];
   sfxEnabled: boolean;
   topLeak: keyof ProgressState['leaks'];
+  homeworkTasks: CoachHomeworkTask[];
+  homeworkLoading: boolean;
   zoneDisplayName: string;
   handleResumePlay: () => void;
   handleRootTabChange: (tab: RootTab) => void;
   handleReplayFromReview: (recordId: number) => Promise<void>;
   handleReviewSelect: (recordId: number) => Promise<void>;
+  handleHomeworkDone: (taskId: string) => Promise<void>;
   loadReviewRecords: (preferredRecordId?: number | null) => Promise<void>;
   setAiVoiceAssistEnabled: React.Dispatch<React.SetStateAction<boolean>>;
   setAppLanguage: React.Dispatch<React.SetStateAction<AppLanguage>>;
@@ -82,11 +86,14 @@ export function RootTabView(props: RootTabViewProps) {
     rootTabItems,
     sfxEnabled,
     topLeak,
+    homeworkTasks,
+    homeworkLoading,
     zoneDisplayName,
     handleResumePlay,
     handleRootTabChange,
     handleReplayFromReview,
     handleReviewSelect,
+    handleHomeworkDone,
     loadReviewRecords,
     setAiVoiceAssistEnabled,
     setAppLanguage,
@@ -199,6 +206,9 @@ export function RootTabView(props: RootTabViewProps) {
                 onToggleSfx={() => setSfxEnabled((v) => !v)}
                 onToggleAiVoiceAssist={() => setAiVoiceAssistEnabled((v) => !v)}
                 onTogglePoliteMode={() => setPoliteMode((v) => !v)}
+                homeworkTasks={homeworkTasks}
+                homeworkLoading={homeworkLoading}
+                onToggleHomeworkDone={(taskId) => { void handleHomeworkDone(taskId); }}
               />
             </View>
             <BottomTabBar

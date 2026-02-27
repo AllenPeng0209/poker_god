@@ -12,6 +12,10 @@ import type {
   CoachChatResponse,
   CoachCreatePlanRequest,
   CoachCreatePlanResponse,
+  CoachHomeworkAdminSummaryResponse,
+  CoachHomeworkCompleteResponse,
+  CoachHomeworkListResponse,
+  CoachHomeworkTask,
   Drill,
   DrillCreateRequest,
   DrillCreateResponse,
@@ -51,6 +55,7 @@ const drills = new Map<string, Drill>();
 const practiceSessions = new Map<string, PracticeSessionRecord>();
 const analyzeUploads = new Map<string, AnalyzeUploadRecord>();
 const weeklyPlans = new Map<string, WeeklyPlan>();
+const homeworkTasksByUser = new Map<string, CoachHomeworkTask[]>();
 const analyticsEvents: AnalyticsEvent[] = [];
 
 const POSITION_ROTATION = ['UTG', 'HJ', 'CO', 'BTN', 'SB', 'BB'] as const;
@@ -264,6 +269,53 @@ function buildCoachActions(input: CoachChatRequest): CoachActionSuggestion[] {
       payload: { itemCount: input.mode === 'Drill' ? 24 : 12, sourceRefId: input.conversationId },
     },
   ];
+}
+
+function buildDefaultHomework(userId: string): CoachHomeworkTask[] {
+  const now = Date.now();
+  const presets = [
+    {
+      title: 'BTN vs BB c-bet 频率校准 20 题',
+      reason: '最近 over_bluff tag 占比偏高，先校正 flop 高频节点。',
+      estimatedMinutes: 18,
+      sourceLeakTag: 'over_bluff',
+    },
+    {
+      title: 'River bluff-catcher 复盘 3 手',
+      reason: '减少 over_fold 漏洞导致的过度弃牌。',
+      estimatedMinutes: 12,
+      sourceLeakTag: 'over_fold',
+    },
+    {
+      title: '薄价值下注 checklist 打卡',
+      reason: '补足 missed_value 场景中的价值下注覆盖。',
+      estimatedMinutes: 10,
+      sourceLeakTag: 'missed_value',
+    },
+  ];
+
+  return presets.map((preset, index) => ({
+    id: newId(),
+    userId,
+    title: preset.title,
+    reason: preset.reason,
+    estimatedMinutes: preset.estimatedMinutes,
+    dueAt: new Date(now + (index + 1) * 24 * 60 * 60 * 1000).toISOString(),
+    sourceLeakTag: preset.sourceLeakTag,
+    status: 'pending',
+    createdAt: nowIso(),
+  }));
+}
+
+function ensureHomework(userId: string): CoachHomeworkTask[] {
+  const existing = homeworkTasksByUser.get(userId);
+  if (existing && existing.length > 0) {
+    return existing;
+  }
+
+  const seeded = buildDefaultHomework(userId);
+  homeworkTasksByUser.set(userId, seeded);
+  return seeded;
 }
 
 export function listDrills(requestId: string): DrillListResponse {
@@ -629,6 +681,76 @@ export function coachCreatePlanAction(
   return {
     requestId,
     plan,
+  };
+}
+
+export function listCoachHomework(requestId: string, userId: string): CoachHomeworkListResponse {
+  const tasks = ensureHomework(userId)
+    .slice()
+    .sort((left, right) => left.dueAt.localeCompare(right.dueAt));
+  const pending = tasks.filter((task) => task.status === 'pending').length;
+  const completed = tasks.length - pending;
+  const completionRatePct = tasks.length === 0 ? 0 : Math.round((completed / tasks.length) * 1000) / 10;
+
+  return {
+    requestId,
+    userId,
+    tasks,
+    summary: {
+      pending,
+      completed,
+      completionRatePct,
+    },
+  };
+}
+
+export function completeCoachHomework(
+  requestId: string,
+  userId: string,
+  taskId: string,
+): CoachHomeworkCompleteResponse | null {
+  const tasks = ensureHomework(userId);
+  const index = tasks.findIndex((task) => task.id === taskId);
+  if (index < 0) {
+    return null;
+  }
+
+  const existing = tasks[index];
+  const updated = {
+    ...existing,
+    status: 'completed' as const,
+    completedAt: existing.completedAt ?? nowIso(),
+  };
+  tasks[index] = updated;
+  homeworkTasksByUser.set(userId, tasks);
+
+  return {
+    requestId,
+    task: updated,
+  };
+}
+
+export function coachHomeworkAdminSummary(requestId: string): CoachHomeworkAdminSummaryResponse {
+  const allTasks = Array.from(homeworkTasksByUser.values()).flat();
+  const completed = allTasks.filter((task) => task.status === 'completed').length;
+  const pending = allTasks.length - completed;
+  const byLeak = new Map<string, number>();
+  allTasks.forEach((task) => {
+    byLeak.set(task.sourceLeakTag, (byLeak.get(task.sourceLeakTag) ?? 0) + 1);
+  });
+
+  return {
+    requestId,
+    users: homeworkTasksByUser.size,
+    tasks: allTasks.length,
+    pending,
+    completed,
+    completionRatePct: allTasks.length === 0 ? 0 : Math.round((completed / allTasks.length) * 1000) / 10,
+    topLeakTags: Array.from(byLeak.entries())
+      .map(([tag, count]) => ({ tag, count }))
+      .sort((left, right) => right.count - left.count)
+      .slice(0, 5),
+    updatedAt: nowIso(),
   };
 }
 

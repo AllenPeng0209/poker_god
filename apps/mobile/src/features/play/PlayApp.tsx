@@ -4,6 +4,7 @@ import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
 import * as Speech from 'expo-speech';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { CoachHomeworkTask } from '@poker-god/contracts';
 import { Animated, DimensionValue, Easing, GestureResponderEvent, LayoutChangeEvent, Platform, SafeAreaView, ScrollView, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 
 import { BottomTabBar } from '../../components/navigation/BottomTabBar';
@@ -31,6 +32,7 @@ import {
 } from '../../storage/localDb';
 import type { HandRecordDetail, HandRecordSummary, LocalProfile } from '../../storage/localDb';
 import { ActionType, AiProfile, HandState, ProgressState, Street, TablePosition } from '../../types/poker';
+import { completeCoachHomeworkTask, fetchCoachHomework } from '../../services/coachHomeworkApi';
 
 import * as Play from './index';
 import { usePlayDecisionActions } from './hooks/usePlayDecisionActions';
@@ -115,6 +117,8 @@ export default function PlayApp() {
   const [reviewLoading, setReviewLoading] = useState(false);
   const [reviewSelectedId, setReviewSelectedId] = useState<number | null>(null);
   const [reviewSelectedDetail, setReviewSelectedDetail] = useState<HandRecordDetail | null>(null);
+  const [homeworkTasks, setHomeworkTasks] = useState<CoachHomeworkTask[]>([]);
+  const [homeworkLoading, setHomeworkLoading] = useState(false);
 
   const [seats, setSeats] = useState<Seat[]>(() => initialSeatsForApp);
   const [buttonSeatId, setButtonSeatId] = useState(HERO_SEAT);
@@ -401,6 +405,47 @@ export default function PlayApp() {
     }
     void loadReviewRecords();
   }, [rootTab, handRecordCount, loadReviewRecords]);
+
+  const syncHomework = useCallback(async () => {
+    if (!activeProfile) {
+      setHomeworkTasks([]);
+      return;
+    }
+    setHomeworkLoading(true);
+    try {
+      const result = await fetchCoachHomework(activeProfile.id);
+      setHomeworkTasks(result.tasks);
+    } catch (error) {
+      console.warn('Coach homework sync failed', error);
+    } finally {
+      setHomeworkLoading(false);
+    }
+  }, [activeProfile]);
+
+  const handleHomeworkDone = useCallback(async (taskId: string) => {
+    if (!activeProfile) {
+      return;
+    }
+
+    setHomeworkTasks((prev) =>
+      prev.map((task) => (task.id === taskId ? { ...task, status: 'completed', completedAt: task.completedAt ?? new Date().toISOString() } : task)),
+    );
+    try {
+      await completeCoachHomeworkTask(activeProfile.id, taskId);
+      await syncHomework();
+      setNote(l(appLanguage, '作業已完成，AI 教練會在下一輪更新任務。', '作业已完成，AI 教练会在下一轮更新任务。', 'Homework marked done. Coach will refresh your next tasks.'));
+    } catch (error) {
+      console.warn('Coach homework complete failed', error);
+      await syncHomework();
+    }
+  }, [activeProfile, appLanguage, setNote, syncHomework]);
+
+  useEffect(() => {
+    if (rootTab !== 'profile') {
+      return;
+    }
+    void syncHomework();
+  }, [rootTab, syncHomework]);
 
   useEffect(() => {
     if (!localDbReady || !activeProfile) {
@@ -777,11 +822,14 @@ export default function PlayApp() {
         rootTabItems={rootTabItems}
         sfxEnabled={sfxEnabled}
         topLeak={topLeak}
+        homeworkTasks={homeworkTasks}
+        homeworkLoading={homeworkLoading}
         zoneDisplayName={zoneDisplayName}
         handleResumePlay={handleResumePlay}
         handleRootTabChange={handleRootTabChange}
         handleReplayFromReview={handleReplayFromReview}
         handleReviewSelect={handleReviewSelect}
+        handleHomeworkDone={handleHomeworkDone}
         loadReviewRecords={loadReviewRecords}
         setAiVoiceAssistEnabled={setAiVoiceAssistEnabled}
         setAppLanguage={setAppLanguage}

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import type { CoachHomeworkTask } from '@poker-god/contracts';
 
 type AppLanguage = 'zh-TW' | 'zh-CN' | 'en-US';
 type LanguageOption = { key: AppLanguage; label: string };
@@ -29,6 +30,9 @@ type ProfileScreenProps = {
   onToggleSfx: () => void;
   onToggleAiVoiceAssist: () => void;
   onTogglePoliteMode: () => void;
+  homeworkTasks: CoachHomeworkTask[];
+  homeworkLoading: boolean;
+  onToggleHomeworkDone: (taskId: string) => void;
 };
 
 function l(language: AppLanguage, zhTw: string, zhCn: string, en: string): string {
@@ -72,6 +76,9 @@ export function ProfileScreen({
   onToggleSfx,
   onToggleAiVoiceAssist,
   onTogglePoliteMode,
+  homeworkTasks,
+  homeworkLoading,
+  onToggleHomeworkDone,
 }: ProfileScreenProps) {
   const wr = winRate(handsPlayed, handsWon);
 
@@ -116,6 +123,33 @@ export function ProfileScreen({
         <Text style={styles.cardHint}>1. {l(language, '先打 20 手，累積當日樣本', '先打 20 手，累积当日样本', 'Play 20 hands to build daily sample')}</Text>
         <Text style={styles.cardHint}>2. {l(language, '復盤 3 手最大損失局', '复盘 3 手最大损失局', 'Review top 3 losing hands')}</Text>
         <Text style={styles.cardHint}>3. {l(language, '回到學習頁修正單一漏洞', '回到学习页修正单一漏洞', 'Return to Learn and fix one leak at a time')}</Text>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>{l(language, '今日作業清單', '今日作业清单', 'Today Homework')}</Text>
+        <Text style={styles.cardHint}>{l(language, '完成作業可提升連續學習與留存。', '完成作业可提升连续学习与留存。', 'Completing homework improves streaks and retention.')}</Text>
+        {homeworkLoading ? (
+          <Text style={styles.cardHint}>{l(language, '同步中...', '同步中...', 'Syncing...')}</Text>
+        ) : null}
+        {homeworkTasks.map((task) => {
+          const done = task.status === 'completed';
+          return (
+            <Pressable
+              key={task.id}
+              onPress={() => {
+                if (!done) onToggleHomeworkDone(task.id);
+              }}
+              style={({ pressed }) => [styles.homeworkRow, done && styles.homeworkRowDone, pressed && styles.pressed]}
+            >
+              <View style={styles.homeworkCheck}>{done ? <Text style={styles.homeworkCheckText}>✓</Text> : null}</View>
+              <View style={styles.homeworkCopy}>
+                <Text style={styles.homeworkTitle}>{task.title}</Text>
+                <Text style={styles.homeworkSub}>{task.reason}</Text>
+                <Text style={styles.homeworkSub}>{l(language, '预计时长', '预计时长', 'ETA')}: {task.estimatedMinutes}m</Text>
+              </View>
+            </Pressable>
+          );
+        })}
       </View>
 
       <View style={styles.card}>
@@ -307,6 +341,49 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     gap: 10,
+  },
+  homeworkRow: {
+    flexDirection: 'row',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#355d6b',
+    borderRadius: 9,
+    backgroundColor: '#133344',
+    paddingHorizontal: 9,
+    paddingVertical: 8,
+  },
+  homeworkRowDone: {
+    borderColor: '#80ffd5',
+    backgroundColor: '#1f5449',
+  },
+  homeworkCheck: {
+    width: 18,
+    height: 18,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: '#8bc6d8',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+  },
+  homeworkCheckText: {
+    color: '#e8fff8',
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  homeworkCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  homeworkTitle: {
+    color: '#ecfdff',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  homeworkSub: {
+    color: '#acd0dc',
+    fontSize: 11,
+    lineHeight: 15,
   },
   accountMetaLabel: {
     color: '#9cc2d0',

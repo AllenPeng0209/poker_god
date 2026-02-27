@@ -356,6 +356,52 @@ export interface CoachCreatePlanResponse {
   plan: WeeklyPlan;
 }
 
+export type CoachHomeworkStatus = 'pending' | 'completed';
+
+export interface CoachHomeworkTask {
+  id: string;
+  userId: string;
+  title: string;
+  reason: string;
+  estimatedMinutes: number;
+  dueAt: string;
+  sourceLeakTag: string;
+  status: CoachHomeworkStatus;
+  completedAt?: string;
+  createdAt: string;
+}
+
+export interface CoachHomeworkListResponse {
+  requestId: string;
+  userId: string;
+  tasks: CoachHomeworkTask[];
+  summary: {
+    pending: number;
+    completed: number;
+    completionRatePct: number;
+  };
+}
+
+export interface CoachHomeworkCompleteRequest {
+  userId: string;
+}
+
+export interface CoachHomeworkCompleteResponse {
+  requestId: string;
+  task: CoachHomeworkTask;
+}
+
+export interface CoachHomeworkAdminSummaryResponse {
+  requestId: string;
+  users: number;
+  tasks: number;
+  pending: number;
+  completed: number;
+  completionRatePct: number;
+  topLeakTags: Array<{ tag: string; count: number }>;
+  updatedAt: string;
+}
+
 export type AnalyticsEventName =
   | 'study_node_opened'
   | 'drill_started'
