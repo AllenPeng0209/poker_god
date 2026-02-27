@@ -40,10 +40,12 @@ From a deep scan, the highest-impact gap was missing **mistake diagnosis -> imme
 - Mobile rollout intended behind `EXPO_PUBLIC_COACH_DIAGNOSIS_V1` (canary -> full rollout).
 
 ### Push result
-- Pending in this run summary (attempted after commit).
+- Failed: `git push -u origin pg/hourly-20260228-0543-mistake-diagnosis-loop`
+- Error: `fatal: could not read Username for 'https://github.com': No such device or address`
 
 ### Blockers
-- None functionally; potential toolchain friction if local TypeScript binaries are missing.
+- GitHub credentials are unavailable in this runtime for remote push.
+- Local TypeScript compiler is not installed (`npx tsc` bootstrap warning), so mobile type-check is pending CI.
 
 ### Next action
 - Add one-tap deep-link from diagnosis item to prefilled drill session and record diagnosis->drill conversion event.
