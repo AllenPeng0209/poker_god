@@ -7,6 +7,7 @@ import { BottomTabBar } from '../../../components/navigation/BottomTabBar';
 import type { RootTab, RootTabItem } from '../../../navigation/rootTabs';
 import { LearnScreen } from '../../../screens/LearnScreen';
 import { ProfileScreen } from '../../../screens/ProfileScreen';
+import type { CoachHomeworkTask } from '../../../services/coachHomeworkApi';
 import { ReviewScreen } from '../../../screens/ReviewScreen';
 import type { HandRecordDetail, HandRecordSummary, LocalProfile } from '../../../storage/localDb';
 import type { ProgressState } from '../../../types/poker';
@@ -59,6 +60,9 @@ type RootTabViewProps = {
   setNote: React.Dispatch<React.SetStateAction<string>>;
   setPoliteMode: React.Dispatch<React.SetStateAction<boolean>>;
   setSfxEnabled: React.Dispatch<React.SetStateAction<boolean>>;
+  homeworkTask: CoachHomeworkTask | null;
+  homeworkStreakDays: number;
+  onStartHomework: () => void;
 };
 
 export function RootTabView(props: RootTabViewProps) {
@@ -94,6 +98,9 @@ export function RootTabView(props: RootTabViewProps) {
     setNote,
     setPoliteMode,
     setSfxEnabled,
+    homeworkTask,
+    homeworkStreakDays,
+    onStartHomework,
   } = props;
 
   if (rootTab === 'learn') {
@@ -199,6 +206,14 @@ export function RootTabView(props: RootTabViewProps) {
                 onToggleSfx={() => setSfxEnabled((v) => !v)}
                 onToggleAiVoiceAssist={() => setAiVoiceAssistEnabled((v) => !v)}
                 onTogglePoliteMode={() => setPoliteMode((v) => !v)}
+                homeworkCard={homeworkTask ? {
+                  title: homeworkTask.title,
+                  reason: homeworkTask.reason,
+                  etaMinutes: homeworkTask.estimatedMinutes,
+                  streakDays: homeworkStreakDays,
+                  completed: homeworkTask.completed,
+                } : null}
+                onStartHomework={onStartHomework}
               />
             </View>
             <BottomTabBar

@@ -25,6 +25,11 @@ from .schemas import (
     CoachCreateDrillRequest,
     CoachCreatePlanRequest,
     CoachCreatePlanResponse,
+    CoachHomeworkAdminSummaryResponse,
+    CoachHomeworkFeedResponse,
+    CoachHomeworkStartRequest,
+    CoachHomeworkStartResponse,
+    CoachHomeworkTask,
     CoachSection,
     Drill,
     DrillCreateRequest,
@@ -1927,6 +1932,146 @@ def coach_chat(payload: CoachChatRequest) -> CoachChatResponse:
         sections=sections,
         actions=actions,
         createdAt=now_iso(),
+    )
+
+
+def _top_leak_tag(supabase: Client) -> str:
+    rows = (
+        supabase.table("pg_mvp_analyzed_hands")
+        .select("tags,ev_loss_bb100")
+        .limit(500)
+        .execute()
+        .data
+        or []
+    )
+    score_by_tag: dict[str, float] = {}
+    for row in rows:
+        ev_loss = _safe_float(row.get("ev_loss_bb100"), 0.0)
+        for tag in row.get("tags") or []:
+            score_by_tag[str(tag)] = score_by_tag.get(str(tag), 0.0) + ev_loss
+    if not score_by_tag:
+        return "over_bluff"
+    return sorted(score_by_tag.items(), key=lambda kv: kv[1], reverse=True)[0][0]
+
+
+def _homework_drill_id(supabase: Client, leak_tag: str) -> str:
+    existing = (
+        supabase.table("pg_mvp_drills")
+        .select("id")
+        .contains("tags", [leak_tag])
+        .eq("source_type", "coach")
+        .limit(1)
+        .execute()
+        .data
+        or []
+    )
+    if existing:
+        return str(existing[0]["id"])
+    created = create_drill(
+        supabase,
+        DrillCreateRequest(
+            title=f"Homework: {leak_tag}",
+            sourceType="coach",
+            sourceRefId=f"homework-{leak_tag}",
+            tags=[leak_tag, "homework"],
+            itemCount=12,
+        ),
+    )
+    return created.drill.id
+
+
+def get_coach_homework_feed(supabase: Client, user_id: str) -> CoachHomeworkFeedResponse:
+    rid = request_id()
+    top_tag = _top_leak_tag(supabase)
+    second_tag = "missed_value" if top_tag != "missed_value" else "over_bluff"
+
+    started_rows = (
+        supabase.table("pg_mvp_events")
+        .select("payload,event_time")
+        .eq("event_name", "coach_homework_started")
+        .eq("user_id", user_id)
+        .limit(200)
+        .execute()
+        .data
+        or []
+    )
+    started_ids = {str((row.get("payload") or {}).get("taskId") or "") for row in started_rows}
+    streak_days = len({str(row.get("event_time") or "")[:10] for row in started_rows if row.get("event_time")})
+
+    tags = [top_tag, second_tag]
+    tasks: list[CoachHomeworkTask] = []
+    for idx, tag in enumerate(tags):
+        task_id = f"{tag}-{idx+1}"
+        tasks.append(
+            CoachHomeworkTask(
+                id=task_id,
+                title=(f"修复 {tag} 核心漏点" if idx == 0 else f"巩固 {tag} 次级漏点"),
+                reason=("该漏点在最近样本中的 EV 损失最高。" if idx == 0 else "次高影响漏点，适合完成主任务后补强。"),
+                leakTag=tag,
+                targetDrillId=_homework_drill_id(supabase, tag),
+                estimatedMinutes=(18 if idx == 0 else 12),
+                priorityScore=(91.5 if idx == 0 else 74.2),
+                dueAt=(datetime.now(UTC) + timedelta(days=idx + 1)).isoformat(),
+                completed=task_id in started_ids,
+            ),
+        )
+
+    return CoachHomeworkFeedResponse(
+        requestId=rid,
+        userId=user_id,
+        generatedAt=now_iso(),
+        tasks=tasks,
+        streakDays=streak_days,
+    )
+
+
+def start_coach_homework(supabase: Client, payload: CoachHomeworkStartRequest) -> CoachHomeworkStartResponse:
+    rid = request_id()
+    supabase.table("pg_mvp_events").insert(
+        {
+            "event_name": "coach_homework_started",
+            "event_time": now_iso(),
+            "session_id": f"homework:{payload.userId}",
+            "user_id": payload.userId,
+            "route": "/api/coach/homework/start",
+            "module": "coach",
+            "payload": {"taskId": payload.taskId, "source": payload.source or "mobile_profile"},
+        },
+    ).execute()
+    return CoachHomeworkStartResponse(requestId=rid, accepted=True, startedAt=now_iso())
+
+
+def get_coach_homework_admin_summary(supabase: Client) -> CoachHomeworkAdminSummaryResponse:
+    rid = request_id()
+    rows = (
+        supabase.table("pg_mvp_events")
+        .select("user_id,payload,event_time")
+        .eq("event_name", "coach_homework_started")
+        .limit(1000)
+        .execute()
+        .data
+        or []
+    )
+    user_ids = {str(row.get("user_id")) for row in rows if row.get("user_id")}
+    starts = len(rows)
+    tasks_generated = max(1, len(user_ids) * 2)
+    start_rate = round(min(100.0, starts / tasks_generated * 100.0), 1)
+    completion_rate = round(min(100.0, len(user_ids) / max(1, tasks_generated) * 100.0), 1)
+
+    priority_values: list[float] = []
+    for user_id in list(user_ids)[:50]:
+        feed = get_coach_homework_feed(supabase, user_id)
+        priority_values.extend([task.priorityScore for task in feed.tasks])
+    avg_priority = round(sum(priority_values) / len(priority_values), 1) if priority_values else 0.0
+
+    return CoachHomeworkAdminSummaryResponse(
+        requestId=rid,
+        generatedAt=now_iso(),
+        activeUsers=len(user_ids),
+        completionRatePct=completion_rate,
+        startRatePct=start_rate,
+        avgPriorityScore=avg_priority,
+        topLeakTag=_top_leak_tag(supabase),
     )
 
 

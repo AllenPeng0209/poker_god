@@ -382,6 +382,48 @@ class CoachCreatePlanResponse(BaseModel):
     plan: WeeklyPlan
 
 
+class CoachHomeworkTask(BaseModel):
+    id: str
+    title: str
+    reason: str
+    leakTag: str
+    targetDrillId: str
+    estimatedMinutes: int
+    priorityScore: float
+    dueAt: str
+    completed: bool
+
+
+class CoachHomeworkFeedResponse(BaseModel):
+    requestId: str
+    userId: str
+    generatedAt: str
+    tasks: list[CoachHomeworkTask]
+    streakDays: int
+
+
+class CoachHomeworkStartRequest(BaseModel):
+    userId: str
+    taskId: str
+    source: Literal["mobile_profile", "coach_chat", "admin_recommendation"] | None = None
+
+
+class CoachHomeworkStartResponse(BaseModel):
+    requestId: str
+    accepted: bool
+    startedAt: str
+
+
+class CoachHomeworkAdminSummaryResponse(BaseModel):
+    requestId: str
+    generatedAt: str
+    activeUsers: int
+    completionRatePct: float
+    startRatePct: float
+    avgPriorityScore: float
+    topLeakTag: str
+
+
 AnalyticsEventName = Literal[
     "study_node_opened",
     "drill_started",
@@ -390,6 +432,7 @@ AnalyticsEventName = Literal[
     "report_opened",
     "coach_message_sent",
     "coach_action_executed",
+    "coach_homework_started",
 ]
 
 

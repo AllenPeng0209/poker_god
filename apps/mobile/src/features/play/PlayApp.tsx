@@ -31,6 +31,7 @@ import {
 } from '../../storage/localDb';
 import type { HandRecordDetail, HandRecordSummary, LocalProfile } from '../../storage/localDb';
 import { ActionType, AiProfile, HandState, ProgressState, Street, TablePosition } from '../../types/poker';
+import { fetchCoachHomework, startCoachHomeworkTask, type CoachHomeworkTask } from '../../services/coachHomeworkApi';
 
 import * as Play from './index';
 import { usePlayDecisionActions } from './hooks/usePlayDecisionActions';
@@ -115,6 +116,9 @@ export default function PlayApp() {
   const [reviewLoading, setReviewLoading] = useState(false);
   const [reviewSelectedId, setReviewSelectedId] = useState<number | null>(null);
   const [reviewSelectedDetail, setReviewSelectedDetail] = useState<HandRecordDetail | null>(null);
+  const [coachHomeworkTask, setCoachHomeworkTask] = useState<CoachHomeworkTask | null>(null);
+  const [coachHomeworkStreakDays, setCoachHomeworkStreakDays] = useState(0);
+  const [coachHomeworkBusy, setCoachHomeworkBusy] = useState(false);
 
   const [seats, setSeats] = useState<Seat[]>(() => initialSeatsForApp);
   const [buttonSeatId, setButtonSeatId] = useState(HERO_SEAT);
@@ -755,6 +759,45 @@ export default function PlayApp() {
     setZoneTrainingById,
   });
 
+  useEffect(() => {
+    if (rootTab !== 'profile' || !activeProfile) {
+      return;
+    }
+
+    let cancelled = false;
+    fetchCoachHomework(activeProfile.id)
+      .then((payload) => {
+        if (cancelled) return;
+        setCoachHomeworkTask(payload.tasks[0] ?? null);
+        setCoachHomeworkStreakDays(payload.streakDays);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setCoachHomeworkTask(null);
+        setCoachHomeworkStreakDays(0);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeProfile, rootTab]);
+
+  const handleStartHomework = useCallback(() => {
+    if (!activeProfile || !coachHomeworkTask || coachHomeworkBusy) {
+      return;
+    }
+    setCoachHomeworkBusy(true);
+    startCoachHomeworkTask(activeProfile.id, coachHomeworkTask.id)
+      .then(() => {
+        setCoachHomeworkTask((prev) => (prev ? { ...prev, completed: true } : prev));
+        setNote(l(appLanguage, '已开始今日 AI 作业，建议先完成 12 题诊断训练。', '已开始今日 AI 作业，建议先完成 12 题诊断训练。', 'Homework started. Complete the 12-hand drill first.'));
+      })
+      .catch(() => {
+        setNote(l(appLanguage, '作业启动失败，请稍后重试。', '作业启动失败，请稍后重试。', 'Failed to start homework. Please retry.'));
+      })
+      .finally(() => setCoachHomeworkBusy(false));
+  }, [activeProfile, appLanguage, coachHomeworkBusy, coachHomeworkTask]);
+
   if (rootTab !== 'play') {
     return (
       <RootTabView
@@ -789,6 +832,9 @@ export default function PlayApp() {
         setNote={setNote}
         setPoliteMode={setPoliteMode}
         setSfxEnabled={setSfxEnabled}
+        homeworkTask={coachHomeworkTask}
+        homeworkStreakDays={coachHomeworkStreakDays}
+        onStartHomework={handleStartHomework}
       />
     );
   }

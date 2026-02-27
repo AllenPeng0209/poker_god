@@ -1,6 +1,17 @@
 'use client';
 
 import { useI18n } from '@/components/i18n/I18nProvider';
+import { apiClient } from '@/lib/apiClient';
+import { useEffect, useState } from 'react';
+
+
+type HomeworkSummary = {
+  activeUsers: number;
+  completionRatePct: number;
+  startRatePct: number;
+  avgPriorityScore: number;
+  topLeakTag: string;
+};
 
 type DashboardModule = {
   id: string;
@@ -60,6 +71,25 @@ const TRAINER_STATS = [
 
 export function WizardDashboard() {
   const { t } = useI18n();
+  const [homeworkSummary, setHomeworkSummary] = useState<HomeworkSummary | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    apiClient
+      .getCoachHomeworkAdminSummary()
+      .then((summary) => {
+        if (!mounted) return;
+        setHomeworkSummary(summary);
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setHomeworkSummary(null);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   return (
     <section className="wizard-dashboard">
@@ -140,20 +170,20 @@ export function WizardDashboard() {
 
           <div className="stats-kpis stats-kpis--compact">
             <div>
-              <span>{t('dashboard.stats.kpi.hands')}</span>
-              <strong>0</strong>
+              <span>Homework Users</span>
+              <strong>{homeworkSummary?.activeUsers ?? 0}</strong>
             </div>
             <div>
-              <span>{t('dashboard.stats.kpi.moves')}</span>
-              <strong>0</strong>
+              <span>Start Rate</span>
+              <strong>{homeworkSummary ? `${homeworkSummary.startRatePct}%` : '0%'}</strong>
             </div>
             <div>
-              <span>{t('dashboard.stats.kpi.mistakes')}</span>
-              <strong>0</strong>
+              <span>Completion</span>
+              <strong>{homeworkSummary ? `${homeworkSummary.completionRatePct}%` : '0%'}</strong>
             </div>
             <div>
-              <span>{t('dashboard.stats.kpi.score')}</span>
-              <strong>0</strong>
+              <span>Top Leak</span>
+              <strong>{homeworkSummary?.topLeakTag ?? 'n/a'}</strong>
             </div>
           </div>
         </article>

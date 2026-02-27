@@ -11,6 +11,10 @@ import type {
   CoachCreateDrillRequest,
   CoachCreatePlanRequest,
   CoachCreatePlanResponse,
+  CoachHomeworkAdminSummaryResponse,
+  CoachHomeworkFeedResponse,
+  CoachHomeworkStartRequest,
+  CoachHomeworkStartResponse,
   DrillCreateRequest,
   DrillCreateResponse,
   DrillListResponse,
@@ -32,11 +36,14 @@ import {
   coachCreateDrillAction,
   coachCreatePlanAction,
   completePracticeSession,
+  getCoachHomeworkAdminSummary,
+  getCoachHomeworkFeed,
   createAnalyzeUpload,
   createDrill,
   getAnalyzeUpload,
   ingestAnalyticsEvents,
   listAnalyzeHands,
+  startCoachHomework,
   listDrills,
   startPracticeSession,
   submitPracticeAnswer,
@@ -328,6 +335,43 @@ app.post<{ Body: CoachCreatePlanRequest }>(
     return result;
   },
 );
+
+
+app.get<{ Querystring: { userId?: string } }>(
+  '/api/coach/homework',
+  async (
+    request,
+    reply,
+  ): Promise<CoachHomeworkFeedResponse | ErrorBody> => {
+    const id = requestId();
+    const userId = typeof request.query.userId === 'string' ? request.query.userId.trim() : '';
+    if (!userId) {
+      return badRequest(reply, id, 'missing_user_id', 'userId is required');
+    }
+
+    return getCoachHomeworkFeed(id, userId);
+  },
+);
+
+app.post<{ Body: CoachHomeworkStartRequest }>(
+  '/api/coach/homework/start',
+  async (
+    request,
+    reply,
+  ): Promise<CoachHomeworkStartResponse | ErrorBody> => {
+    const id = requestId();
+    const body = request.body;
+    if (!body || typeof body.userId !== 'string' || typeof body.taskId !== 'string') {
+      return badRequest(reply, id, 'invalid_body', 'userId and taskId are required');
+    }
+
+    return startCoachHomework(id, body);
+  },
+);
+
+app.get('/api/admin/coach/homework/summary', async (): Promise<CoachHomeworkAdminSummaryResponse> => {
+  return getCoachHomeworkAdminSummary(requestId());
+});
 
 app.post<{ Body: AnalyticsIngestRequest }>(
   '/api/events',

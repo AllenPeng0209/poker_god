@@ -4,6 +4,14 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 type AppLanguage = 'zh-TW' | 'zh-CN' | 'en-US';
 type LanguageOption = { key: AppLanguage; label: string };
 
+type HomeworkCard = {
+  title: string;
+  reason: string;
+  etaMinutes: number;
+  streakDays: number;
+  completed: boolean;
+};
+
 type ProfileScreenProps = {
   language: AppLanguage;
   profileName: string;
@@ -29,6 +37,8 @@ type ProfileScreenProps = {
   onToggleSfx: () => void;
   onToggleAiVoiceAssist: () => void;
   onTogglePoliteMode: () => void;
+  homeworkCard: HomeworkCard | null;
+  onStartHomework: () => void;
 };
 
 function l(language: AppLanguage, zhTw: string, zhCn: string, en: string): string {
@@ -72,6 +82,8 @@ export function ProfileScreen({
   onToggleSfx,
   onToggleAiVoiceAssist,
   onTogglePoliteMode,
+  homeworkCard,
+  onStartHomework,
 }: ProfileScreenProps) {
   const wr = winRate(handsPlayed, handsWon);
 
@@ -117,6 +129,25 @@ export function ProfileScreen({
         <Text style={styles.cardHint}>2. {l(language, '復盤 3 手最大損失局', '复盘 3 手最大损失局', 'Review top 3 losing hands')}</Text>
         <Text style={styles.cardHint}>3. {l(language, '回到學習頁修正單一漏洞', '回到学习页修正单一漏洞', 'Return to Learn and fix one leak at a time')}</Text>
       </View>
+
+
+      {homeworkCard ? (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>{l(language, 'AI 作业', 'AI 作业', 'AI Homework')}</Text>
+          <Text style={styles.leakLabel}>{homeworkCard.title}</Text>
+          <Text style={styles.cardHint}>{homeworkCard.reason}</Text>
+          <Text style={styles.cardHint}>
+            {l(language, '预计时长', '预计时长', 'ETA')}：{homeworkCard.etaMinutes} min · {l(language, '连续天数', '连续天数', 'Streak')} {homeworkCard.streakDays}
+          </Text>
+          <Pressable onPress={onStartHomework} style={({ pressed }) => [styles.actionBtn, pressed && styles.pressed]}>
+            <Text style={styles.actionBtnText}>
+              {homeworkCard.completed
+                ? l(language, '继续复训', '继续复训', 'Resume Homework')
+                : l(language, '开始今日作业', '开始今日作业', 'Start Today's Homework')}
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>{l(language, '帳號管理', '账号管理', 'Account Management')}</Text>

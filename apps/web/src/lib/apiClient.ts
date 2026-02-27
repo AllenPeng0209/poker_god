@@ -9,6 +9,10 @@ import type {
   CoachCreateDrillRequest,
   CoachCreatePlanRequest,
   CoachCreatePlanResponse,
+  CoachHomeworkAdminSummaryResponse,
+  CoachHomeworkFeedResponse,
+  CoachHomeworkStartRequest,
+  CoachHomeworkStartResponse,
   DrillCreateRequest,
   DrillCreateResponse,
   DrillListResponse,
@@ -184,6 +188,22 @@ export const apiClient = {
     });
   },
 
+
+  async getCoachHomework(userId: string): Promise<CoachHomeworkFeedResponse> {
+    const query = new URLSearchParams({ userId });
+    return requestJson<CoachHomeworkFeedResponse>(`/api/coach/homework?${query.toString()}`);
+  },
+
+  async startCoachHomework(input: CoachHomeworkStartRequest): Promise<CoachHomeworkStartResponse> {
+    return requestJson<CoachHomeworkStartResponse>('/api/coach/homework/start', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  },
+
+  async getCoachHomeworkAdminSummary(): Promise<CoachHomeworkAdminSummaryResponse> {
+    return requestJson<CoachHomeworkAdminSummaryResponse>('/api/admin/coach/homework/summary');
+  },
   async ingestEvents(events: AnalyticsEvent[]): Promise<AnalyticsIngestResponse> {
     return requestJson<AnalyticsIngestResponse>('/api/events', {
       method: 'POST',

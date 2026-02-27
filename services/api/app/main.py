@@ -23,6 +23,10 @@ from .schemas import (
     CoachCreateDrillRequest,
     CoachCreatePlanRequest,
     CoachCreatePlanResponse,
+    CoachHomeworkAdminSummaryResponse,
+    CoachHomeworkFeedResponse,
+    CoachHomeworkStartRequest,
+    CoachHomeworkStartResponse,
     DrillCreateRequest,
     DrillCreateResponse,
     DrillListResponse,
@@ -48,6 +52,8 @@ from .services import (
     coach_create_plan_action,
     complete_practice_session,
     create_analyze_upload,
+    get_coach_homework_admin_summary,
+    get_coach_homework_feed,
     create_drill,
     generate_zen_chat,
     get_analyze_upload,
@@ -55,6 +61,7 @@ from .services import (
     ingest_events,
     list_study_spots,
     list_analyze_hands,
+    start_coach_homework,
     list_drills,
     process_analyze_upload,
     request_id,
@@ -422,6 +429,28 @@ def coach_create_plan(payload: CoachCreatePlanRequest) -> CoachCreatePlanRespons
     if isinstance(result, str):
         return _error(409, "confirmation_required", result)
     return result
+
+
+
+@app.get("/api/coach/homework", response_model=CoachHomeworkFeedResponse)
+def coach_homework_feed(user_id: str = Query(alias="userId")) -> CoachHomeworkFeedResponse:
+    supabase = get_supabase_client()
+    cleaned = user_id.strip()
+    if not cleaned:
+        return CoachHomeworkFeedResponse(requestId=request_id(), userId="", generatedAt=datetime.now(UTC).isoformat(), tasks=[], streakDays=0)
+    return get_coach_homework_feed(supabase, cleaned)
+
+
+@app.post("/api/coach/homework/start", response_model=CoachHomeworkStartResponse)
+def coach_homework_start(payload: CoachHomeworkStartRequest) -> CoachHomeworkStartResponse:
+    supabase = get_supabase_client()
+    return start_coach_homework(supabase, payload)
+
+
+@app.get("/api/admin/coach/homework/summary", response_model=CoachHomeworkAdminSummaryResponse)
+def coach_homework_admin_summary() -> CoachHomeworkAdminSummaryResponse:
+    supabase = get_supabase_client()
+    return get_coach_homework_admin_summary(supabase)
 
 
 @app.post("/api/events", response_model=AnalyticsIngestResponse)

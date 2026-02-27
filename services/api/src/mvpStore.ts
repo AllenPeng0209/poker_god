@@ -12,6 +12,11 @@ import type {
   CoachChatResponse,
   CoachCreatePlanRequest,
   CoachCreatePlanResponse,
+  CoachHomeworkAdminSummaryResponse,
+  CoachHomeworkFeedResponse,
+  CoachHomeworkStartRequest,
+  CoachHomeworkStartResponse,
+  CoachHomeworkTask,
   Drill,
   DrillCreateRequest,
   DrillCreateResponse,
@@ -52,6 +57,7 @@ const practiceSessions = new Map<string, PracticeSessionRecord>();
 const analyzeUploads = new Map<string, AnalyzeUploadRecord>();
 const weeklyPlans = new Map<string, WeeklyPlan>();
 const analyticsEvents: AnalyticsEvent[] = [];
+const homeworkStartsByUser = new Map<string, Set<string>>();
 
 const POSITION_ROTATION = ['UTG', 'HJ', 'CO', 'BTN', 'SB', 'BB'] as const;
 const STREET_ROTATION: Array<AnalyzedHand['street']> = ['preflop', 'flop', 'turn', 'river'];
@@ -264,6 +270,117 @@ function buildCoachActions(input: CoachChatRequest): CoachActionSuggestion[] {
       payload: { itemCount: input.mode === 'Drill' ? 24 : 12, sourceRefId: input.conversationId },
     },
   ];
+}
+
+function topLeakTagFromHands(): string {
+  const parsedHands = Array.from(analyzeUploads.values()).flatMap((record) => record.hands);
+  if (parsedHands.length === 0) return 'over_bluff';
+  const scoreByTag = new Map<string, number>();
+  for (const hand of parsedHands) {
+    for (const tag of hand.tags) {
+      scoreByTag.set(tag, (scoreByTag.get(tag) ?? 0) + hand.evLossBb100);
+    }
+  }
+  return Array.from(scoreByTag.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'over_bluff';
+}
+
+function guessStreakDays(userId: string): number {
+  const userEvents = analyticsEvents.filter((event) => event.userId === userId);
+  const daySet = new Set(userEvents.map((event) => event.eventTime.slice(0, 10)));
+  return clamp(daySet.size, 0, 14);
+}
+
+function ensureHomeworkDrill(leakTag: string): Drill {
+  ensureSeedData();
+  const existing = Array.from(drills.values()).find((drill) =>
+    drill.sourceType === 'coach' && drill.tags.includes(leakTag) && drill.title.startsWith('Homework: '),
+  );
+  if (existing) return existing;
+  return createDrillInternal({
+    title: `Homework: ${leakTag}`,
+    sourceType: 'coach',
+    sourceRefId: `homework-${leakTag}`,
+    tags: [leakTag, 'homework'],
+    itemCount: 12,
+  });
+}
+
+function buildHomeworkTasks(userId: string): CoachHomeworkTask[] {
+  const topTag = topLeakTagFromHands();
+  const secondaryTag = topTag === 'over_bluff' ? 'missed_value' : 'over_bluff';
+  const starts = homeworkStartsByUser.get(userId) ?? new Set<string>();
+  return [topTag, secondaryTag].map((tag, index) => {
+    const drill = ensureHomeworkDrill(tag);
+    const taskId = `${tag}-${index + 1}`;
+    const started = starts.has(taskId);
+    return {
+      id: taskId,
+      title: index === 0 ? `修复 ${tag} 核心漏点` : `巩固 ${tag} 次级漏点`,
+      reason: index === 0 ? '该漏点在最近样本中的 EV 损失最高。' : '次高影响漏点，适合完成主任务后补强。',
+      leakTag: tag,
+      targetDrillId: drill.id,
+      estimatedMinutes: index === 0 ? 18 : 12,
+      priorityScore: Number((index === 0 ? 91.5 : 74.2).toFixed(1)),
+      dueAt: new Date(Date.now() + (index + 1) * 3600 * 1000 * 24).toISOString(),
+      completed: started,
+    };
+  });
+}
+
+export function getCoachHomeworkFeed(requestId: string, userId: string): CoachHomeworkFeedResponse {
+  return {
+    requestId,
+    userId,
+    generatedAt: nowIso(),
+    tasks: buildHomeworkTasks(userId),
+    streakDays: guessStreakDays(userId),
+  };
+}
+
+export function startCoachHomework(
+  requestId: string,
+  input: CoachHomeworkStartRequest,
+): CoachHomeworkStartResponse {
+  const starts = homeworkStartsByUser.get(input.userId) ?? new Set<string>();
+  starts.add(input.taskId);
+  homeworkStartsByUser.set(input.userId, starts);
+  analyticsEvents.push({
+    eventName: 'coach_homework_started',
+    eventTime: nowIso(),
+    sessionId: `homework:${input.userId}`,
+    userId: input.userId,
+    route: '/api/coach/homework/start',
+    module: 'coach',
+    payload: { taskId: input.taskId, source: input.source ?? 'mobile_profile' },
+  });
+
+  return {
+    requestId,
+    accepted: true,
+    startedAt: nowIso(),
+  };
+}
+
+export function getCoachHomeworkAdminSummary(requestId: string): CoachHomeworkAdminSummaryResponse {
+  const startedEvents = analyticsEvents.filter((event) => event.eventName === 'coach_homework_started');
+  const activeUsers = new Set(startedEvents.map((event) => event.userId).filter(Boolean)).size;
+  const tasksByUser = Array.from(homeworkStartsByUser.values()).map((set) => set.size);
+  const starts = startedEvents.length;
+  const tasksGenerated = Math.max(activeUsers * 2, 1);
+  const completionRatePct = Number((tasksByUser.reduce((acc, n) => acc + Math.min(n, 2), 0) / tasksGenerated * 100).toFixed(1));
+  const startRatePct = Number((Math.min(1, starts / tasksGenerated) * 100).toFixed(1));
+  const sampleTasks = Array.from(homeworkStartsByUser.keys()).flatMap((userId) => buildHomeworkTasks(userId));
+  const avgPriorityScore = sampleTasks.length === 0 ? 0 : Number((sampleTasks.reduce((acc, t) => acc + t.priorityScore, 0) / sampleTasks.length).toFixed(1));
+
+  return {
+    requestId,
+    generatedAt: nowIso(),
+    activeUsers,
+    completionRatePct,
+    startRatePct,
+    avgPriorityScore,
+    topLeakTag: topLeakTagFromHands(),
+  };
 }
 
 export function listDrills(requestId: string): DrillListResponse {
