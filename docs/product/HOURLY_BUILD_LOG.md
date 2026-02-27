@@ -44,10 +44,11 @@ Deep scan showed the largest commercialization gap was **diagnosis-without-launc
 - Rollout: internal QA -> 10% cohort -> full rollout after 48h KPI check.
 
 ### Push result
-- Pending (attempt after commit in this run).
+- Failed: `git push -u origin pg/hourly-20260228-0644-diagnosis-drill-launch`
+- Error: `fatal: could not read Username for 'https://github.com': No such device or address`
 
 ### Blockers
-- If GitHub credentials are unavailable in runtime, remote push may fail.
+- GitHub credentials are unavailable in this runtime, so remote push cannot complete.
 
 ### Next action
 - Add direct deep-link from homework task into prefilled drill session and track task completion (not just start).
