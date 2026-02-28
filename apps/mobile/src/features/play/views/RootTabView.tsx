@@ -4,6 +4,7 @@ import React from 'react';
 import { SafeAreaView, View } from 'react-native';
 
 import { BottomTabBar } from '../../../components/navigation/BottomTabBar';
+import { fetchCoachFunnelSummary } from '../../../services/coachFunnelApi';
 import type { RootTab, RootTabItem } from '../../../navigation/rootTabs';
 import { LearnScreen } from '../../../screens/LearnScreen';
 import { ProfileScreen } from '../../../screens/ProfileScreen';
@@ -95,6 +96,30 @@ export function RootTabView(props: RootTabViewProps) {
     setPoliteMode,
     setSfxEnabled,
   } = props;
+
+  const coachFunnelEnabled = process.env.EXPO_PUBLIC_MOBILE_COACH_FUNNEL_V1 === '1';
+  const [coachFunnelLoading, setCoachFunnelLoading] = React.useState(false);
+  const [coachFunnelError, setCoachFunnelError] = React.useState<string | null>(null);
+  const [coachFunnelSummary, setCoachFunnelSummary] = React.useState<Awaited<ReturnType<typeof fetchCoachFunnelSummary>> | null>(null);
+
+  const loadCoachFunnel = React.useCallback(async () => {
+    if (!coachFunnelEnabled) return;
+    setCoachFunnelLoading(true);
+    setCoachFunnelError(null);
+    try {
+      const summary = await fetchCoachFunnelSummary(30);
+      setCoachFunnelSummary(summary);
+    } catch (error) {
+      setCoachFunnelError(error instanceof Error ? error.message : 'Failed to load coach funnel.');
+    } finally {
+      setCoachFunnelLoading(false);
+    }
+  }, [coachFunnelEnabled]);
+
+  React.useEffect(() => {
+    if (rootTab !== 'profile' || !coachFunnelEnabled) return;
+    void loadCoachFunnel();
+  }, [coachFunnelEnabled, loadCoachFunnel, rootTab]);
 
   if (rootTab === 'learn') {
     return (
@@ -199,6 +224,13 @@ export function RootTabView(props: RootTabViewProps) {
                 onToggleSfx={() => setSfxEnabled((v) => !v)}
                 onToggleAiVoiceAssist={() => setAiVoiceAssistEnabled((v) => !v)}
                 onTogglePoliteMode={() => setPoliteMode((v) => !v)}
+                coachFunnelEnabled={coachFunnelEnabled}
+                coachFunnelLoading={coachFunnelLoading}
+                coachFunnelError={coachFunnelError}
+                coachFunnelSummary={coachFunnelSummary}
+                onRefreshCoachFunnel={() => {
+                  void loadCoachFunnel();
+                }}
               />
             </View>
             <BottomTabBar

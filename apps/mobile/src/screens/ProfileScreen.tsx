@@ -1,6 +1,8 @@
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import type { CoachFunnelSummary } from '../services/coachFunnelApi';
+
 type AppLanguage = 'zh-TW' | 'zh-CN' | 'en-US';
 type LanguageOption = { key: AppLanguage; label: string };
 
@@ -29,6 +31,11 @@ type ProfileScreenProps = {
   onToggleSfx: () => void;
   onToggleAiVoiceAssist: () => void;
   onTogglePoliteMode: () => void;
+  coachFunnelEnabled?: boolean;
+  coachFunnelLoading?: boolean;
+  coachFunnelError?: string | null;
+  coachFunnelSummary?: CoachFunnelSummary | null;
+  onRefreshCoachFunnel?: () => void;
 };
 
 function l(language: AppLanguage, zhTw: string, zhCn: string, en: string): string {
@@ -72,6 +79,11 @@ export function ProfileScreen({
   onToggleSfx,
   onToggleAiVoiceAssist,
   onTogglePoliteMode,
+  coachFunnelEnabled = false,
+  coachFunnelLoading = false,
+  coachFunnelError = null,
+  coachFunnelSummary = null,
+  onRefreshCoachFunnel,
 }: ProfileScreenProps) {
   const wr = winRate(handsPlayed, handsWon);
 
@@ -117,6 +129,38 @@ export function ProfileScreen({
         <Text style={styles.cardHint}>2. {l(language, '復盤 3 手最大損失局', '复盘 3 手最大损失局', 'Review top 3 losing hands')}</Text>
         <Text style={styles.cardHint}>3. {l(language, '回到學習頁修正單一漏洞', '回到学习页修正单一漏洞', 'Return to Learn and fix one leak at a time')}</Text>
       </View>
+
+      {coachFunnelEnabled ? (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>{l(language, 'Coach 漏斗雷達（Mobile）', 'Coach 漏斗雷达（Mobile）', 'Coach Funnel Radar (Mobile)')}</Text>
+          {coachFunnelLoading ? (
+            <Text style={styles.cardHint}>{l(language, '載入中...', '加载中...', 'Loading...')}</Text>
+          ) : coachFunnelSummary ? (
+            <>
+              <Text style={styles.cardHint}>
+                {l(language, '作業掛載率', '作业挂载率', 'Homework attach rate')}: {coachFunnelSummary.homeworkAttachRatePct.toFixed(1)}%
+              </Text>
+              <Text style={styles.cardHint}>
+                {l(language, '作業完成率', '作业完成率', 'Homework completion rate')}: {coachFunnelSummary.homeworkCompletionRatePct.toFixed(1)}%
+              </Text>
+              {coachFunnelSummary.stages.map((stage) => (
+                <Text key={stage.key} style={styles.cardHint}>
+                  • {stage.label}: {stage.sessions} {l(language, '場', '场', 'sessions')} / {l(language, '階段轉化', '阶段转化', 'stage conv')} {stage.conversionPctFromPrev.toFixed(1)}%
+                </Text>
+              ))}
+              <Text style={styles.cardHint}>
+                {l(language, '最大流失節點', '最大流失节点', 'Largest drop stage')}: {coachFunnelSummary.biggestDropStageKey}
+              </Text>
+            </>
+          ) : (
+            <Text style={styles.cardHint}>{l(language, '暫無資料', '暂无数据', 'No funnel data yet')}</Text>
+          )}
+          {coachFunnelError ? <Text style={styles.errorText}>{coachFunnelError}</Text> : null}
+          <Pressable onPress={onRefreshCoachFunnel} style={({ pressed }) => [styles.actionBtn, styles.actionBtnAlt, pressed && styles.pressed]}>
+            <Text style={styles.actionBtnText}>{l(language, '刷新漏斗', '刷新漏斗', 'Refresh funnel')}</Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>{l(language, '帳號管理', '账号管理', 'Account Management')}</Text>
@@ -301,6 +345,12 @@ const styles = StyleSheet.create({
     color: '#b8d6e3',
     fontSize: 12,
     lineHeight: 17,
+  },
+  errorText: {
+    color: '#ffb4b4',
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: '700',
   },
   accountMetaRow: {
     flexDirection: 'row',
