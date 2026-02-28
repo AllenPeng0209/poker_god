@@ -23,7 +23,7 @@
 - Manual endpoint smoke planned for staging deploy
 
 ### Push result
-- Pending (to be executed after commit)
+- Failed: `fatal: could not read Username for 'https://github.com': No such device or address`
 
 ### Blockers
 - None in local build phase
