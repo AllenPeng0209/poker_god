@@ -8,6 +8,7 @@ import type { RootTab, RootTabItem } from '../../../navigation/rootTabs';
 import { LearnScreen } from '../../../screens/LearnScreen';
 import { ProfileScreen } from '../../../screens/ProfileScreen';
 import { ReviewScreen } from '../../../screens/ReviewScreen';
+import { fetchAdminLatencyOps } from '../../../services/adminOpsApi';
 import type { HandRecordDetail, HandRecordSummary, LocalProfile } from '../../../storage/localDb';
 import type { ProgressState } from '../../../types/poker';
 
@@ -26,6 +27,8 @@ const {
 } = Play;
 
 type AppLanguage = Play.AppLanguage;
+
+const MOBILE_OPS_LATENCY_V1 = process.env.EXPO_PUBLIC_MOBILE_OPS_LATENCY_V1 === '1';
 
 type RootTabViewProps = {
   activeProfile: LocalProfile | null;
@@ -95,6 +98,43 @@ export function RootTabView(props: RootTabViewProps) {
     setPoliteMode,
     setSfxEnabled,
   } = props;
+
+  const [latencyLoading, setLatencyLoading] = React.useState(false);
+  const [latencyError, setLatencyError] = React.useState<string | null>(null);
+  const [latencyGeneratedAt, setLatencyGeneratedAt] = React.useState('');
+  const [latencySampleSize, setLatencySampleSize] = React.useState(0);
+  const [latencyRoutes, setLatencyRoutes] = React.useState<Array<{
+    route: string;
+    count: number;
+    avgMs: number;
+    p50Ms: number;
+    p95Ms: number;
+    maxMs: number;
+  }>>([]);
+
+  const refreshLatency = React.useCallback(async () => {
+    if (!MOBILE_OPS_LATENCY_V1) return;
+    setLatencyLoading(true);
+    setLatencyError(null);
+    try {
+      const response = await fetchAdminLatencyOps();
+      const topByP95 = [...response.routes].sort((a, b) => b.p95Ms - a.p95Ms);
+      setLatencyGeneratedAt(response.generatedAt);
+      setLatencySampleSize(response.sampleSize);
+      setLatencyRoutes(topByP95);
+    } catch (error) {
+      setLatencyError(error instanceof Error ? error.message : 'Failed to load latency telemetry');
+    } finally {
+      setLatencyLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (rootTab !== 'profile' || !MOBILE_OPS_LATENCY_V1) {
+      return;
+    }
+    void refreshLatency();
+  }, [refreshLatency, rootTab]);
 
   if (rootTab === 'learn') {
     return (
@@ -192,6 +232,13 @@ export function RootTabView(props: RootTabViewProps) {
                 sfxEnabled={sfxEnabled}
                 aiVoiceAssistEnabled={aiVoiceAssistEnabled}
                 politeMode={politeMode}
+                mobileOpsLatencyEnabled={MOBILE_OPS_LATENCY_V1}
+                latencyLoading={latencyLoading}
+                latencyError={latencyError}
+                latencyGeneratedAt={latencyGeneratedAt}
+                latencySampleSize={latencySampleSize}
+                latencyRoutes={latencyRoutes}
+                onRefreshLatency={() => { void refreshLatency(); }}
                 onChangeLanguage={(language) => {
                   setAppLanguage(language);
                   setNote(t(language, 'note_language_switched', { language: appLanguageLabels[language] }));

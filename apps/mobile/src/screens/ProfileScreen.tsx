@@ -4,6 +4,15 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 type AppLanguage = 'zh-TW' | 'zh-CN' | 'en-US';
 type LanguageOption = { key: AppLanguage; label: string };
 
+type LatencyRouteStat = {
+  route: string;
+  count: number;
+  avgMs: number;
+  p50Ms: number;
+  p95Ms: number;
+  maxMs: number;
+};
+
 type ProfileScreenProps = {
   language: AppLanguage;
   profileName: string;
@@ -25,6 +34,13 @@ type ProfileScreenProps = {
   sfxEnabled: boolean;
   aiVoiceAssistEnabled: boolean;
   politeMode: boolean;
+  mobileOpsLatencyEnabled: boolean;
+  latencyLoading: boolean;
+  latencyError: string | null;
+  latencyGeneratedAt: string;
+  latencySampleSize: number;
+  latencyRoutes: LatencyRouteStat[];
+  onRefreshLatency: () => void;
   onChangeLanguage: (language: AppLanguage) => void;
   onToggleSfx: () => void;
   onToggleAiVoiceAssist: () => void;
@@ -68,6 +84,13 @@ export function ProfileScreen({
   sfxEnabled,
   aiVoiceAssistEnabled,
   politeMode,
+  mobileOpsLatencyEnabled,
+  latencyLoading,
+  latencyError,
+  latencyGeneratedAt,
+  latencySampleSize,
+  latencyRoutes,
+  onRefreshLatency,
   onChangeLanguage,
   onToggleSfx,
   onToggleAiVoiceAssist,
@@ -149,6 +172,46 @@ export function ProfileScreen({
           <Text style={styles.actionBtnText}>{l(language, '管理訂閱', '管理订阅', 'Manage Subscription')}</Text>
         </Pressable>
       </View>
+
+      {mobileOpsLatencyEnabled ? (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>{l(language, '行動端延遲雷達（Debug）', '移动端延迟雷达（Debug）', 'Mobile Latency Radar (Debug)')}</Text>
+          <Text style={styles.cardHint}>
+            {l(
+              language,
+              `樣本 ${latencySampleSize} ｜ 更新 ${latencyGeneratedAt || '-'}`,
+              `样本 ${latencySampleSize} ｜ 更新 ${latencyGeneratedAt || '-'}`,
+              `Samples ${latencySampleSize} | Updated ${latencyGeneratedAt || '-'}`,
+            )}
+          </Text>
+          <Pressable onPress={onRefreshLatency} style={({ pressed }) => [styles.actionBtn, styles.actionBtnAlt, pressed && styles.pressed]}>
+            <Text style={styles.actionBtnText}>
+              {latencyLoading
+                ? l(language, '讀取中…', '读取中…', 'Loading…')
+                : l(language, '刷新延遲資料', '刷新延迟数据', 'Refresh latency data')}
+            </Text>
+          </Pressable>
+          {latencyRoutes.length > 0 ? (
+            <View style={styles.latencyList}>
+              {latencyRoutes.slice(0, 5).map((route) => (
+                <View key={route.route} style={styles.latencyRow}>
+                  <Text style={styles.latencyRoute}>{route.route}</Text>
+                  <Text style={styles.latencyP95}>p95 {route.p95Ms.toFixed(1)}ms</Text>
+                  <Text style={styles.cardHint}>
+                    {l(
+                      language,
+                      `樣本 ${route.count} ｜ avg ${route.avgMs.toFixed(1)} ｜ p50 ${route.p50Ms.toFixed(1)} ｜ max ${route.maxMs.toFixed(1)}`,
+                      `样本 ${route.count} ｜ avg ${route.avgMs.toFixed(1)} ｜ p50 ${route.p50Ms.toFixed(1)} ｜ max ${route.maxMs.toFixed(1)}`,
+                      `count ${route.count} | avg ${route.avgMs.toFixed(1)} | p50 ${route.p50Ms.toFixed(1)} | max ${route.maxMs.toFixed(1)}`,
+                    )}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+          {latencyError ? <Text style={styles.errorText}>{latencyError}</Text> : null}
+        </View>
+      ) : null}
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>{l(language, '通用設定', '通用设置', 'General Settings')}</Text>
@@ -301,6 +364,34 @@ const styles = StyleSheet.create({
     color: '#b8d6e3',
     fontSize: 12,
     lineHeight: 17,
+  },
+  latencyList: {
+    gap: 8,
+  },
+  latencyRow: {
+    borderWidth: 1,
+    borderColor: '#2f5668',
+    borderRadius: 10,
+    backgroundColor: '#122e3f',
+    paddingHorizontal: 8,
+    paddingVertical: 7,
+    gap: 3,
+  },
+  latencyRoute: {
+    color: '#eefcff',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  latencyP95: {
+    color: '#f7e3a7',
+    fontSize: 12,
+    fontWeight: '800',
+    fontFamily: 'monospace',
+  },
+  errorText: {
+    color: '#ff8f8f',
+    fontSize: 12,
+    fontWeight: '700',
   },
   accountMetaRow: {
     flexDirection: 'row',
