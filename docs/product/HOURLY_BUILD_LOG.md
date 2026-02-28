@@ -26,7 +26,8 @@
 - Planned prod migration: persist coach conversation memory in DB + feature flag `coach_homework_v1`.
 
 ### Push result
-- Pending at log creation time.
+- Success: pushed `pg/hourly-20260228-1104-ai-coach-homework-memory`
+- PR URL: https://github.com/AllenPeng0209/poker_god/pull/new/pg/hourly-20260228-1104-ai-coach-homework-memory
 
 ### Blockers
 - No hard blocker.
