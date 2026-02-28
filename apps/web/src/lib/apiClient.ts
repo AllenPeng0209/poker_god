@@ -30,6 +30,42 @@ type ApiErrorResponse = {
   requestId?: string;
 };
 
+export type CoachHomeworkStatus = 'pending' | 'in_progress' | 'completed' | 'archived';
+
+export type CoachHomework = {
+  id: string;
+  userId: string;
+  title: string;
+  sourceLeakCluster: string;
+  sourceSessionId?: string | null;
+  status: CoachHomeworkStatus;
+  dueAt?: string | null;
+  metadata: Record<string, unknown>;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CoachHomeworkCreateRequest = {
+  userId: string;
+  title: string;
+  sourceLeakCluster: string;
+  sourceSessionId?: string;
+  dueAt?: string;
+  metadata?: Record<string, unknown>;
+  createdBy: string;
+};
+
+export type CoachHomeworkCreateResponse = {
+  requestId: string;
+  homework: CoachHomework;
+};
+
+export type CoachHomeworkStatusUpdateResponse = {
+  requestId: string;
+  homework: CoachHomework;
+};
+
 const DEFAULT_API_BASE = 'http://localhost:3001';
 const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL ?? DEFAULT_API_BASE).replace(/\/+$/, '');
 const PUBLIC_API_KEY = (process.env.NEXT_PUBLIC_API_KEY ?? '').trim();
@@ -181,6 +217,28 @@ export const apiClient = {
     return requestJson<CoachCreatePlanResponse>('/api/coach/actions/create-plan', {
       method: 'POST',
       body: JSON.stringify(input),
+    });
+  },
+
+  async createCoachHomework(input: CoachHomeworkCreateRequest): Promise<CoachHomeworkCreateResponse> {
+    return requestJson<CoachHomeworkCreateResponse>('/api/coach/homeworks', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  },
+
+  async getCoachHomework(homeworkId: string): Promise<CoachHomework> {
+    return requestJson<CoachHomework>(`/api/coach/homeworks/${homeworkId}`);
+  },
+
+  async updateCoachHomeworkStatus(
+    homeworkId: string,
+    status: CoachHomeworkStatus,
+    actor: string,
+  ): Promise<CoachHomeworkStatusUpdateResponse> {
+    return requestJson<CoachHomeworkStatusUpdateResponse>(`/api/coach/homeworks/${homeworkId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status, actor }),
     });
   },
 

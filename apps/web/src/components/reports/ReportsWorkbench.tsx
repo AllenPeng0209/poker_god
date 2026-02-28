@@ -3,10 +3,15 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useI18n } from '@/components/i18n/I18nProvider';
-import { apiClient } from '@/lib/apiClient';
+import {
+  apiClient,
+  type CoachHomework,
+  type CoachHomeworkStatus,
+} from '@/lib/apiClient';
 import { trackEvent } from '@/lib/analytics';
 
 const WINDOW_OPTIONS: Array<7 | 30 | 90> = [7, 30, 90];
+const HOMEWORK_QA_FLAG = process.env.NEXT_PUBLIC_ADMIN_HOMEWORK_QA_V1 === '1';
 
 export function ReportsWorkbench() {
   const { t } = useI18n();
@@ -26,6 +31,9 @@ export function ReportsWorkbench() {
       relatedTag: string;
     }>
   >([]);
+  const [qaHomework, setQaHomework] = useState<CoachHomework | null>(null);
+  const [qaLoading, setQaLoading] = useState(false);
+  const [qaError, setQaError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -61,6 +69,44 @@ export function ReportsWorkbench() {
       cancelled = true;
     };
   }, [windowDays, t]);
+
+  const runHomeworkLifecycleQA = async () => {
+    setQaError(null);
+    setQaLoading(true);
+    try {
+      const created = await apiClient.createCoachHomework({
+        userId: 'qa-admin',
+        title: `QA Homework ${new Date().toISOString()}`,
+        sourceLeakCluster: 'river-overbluff-call',
+        metadata: { source: 'reports_workbench_ui_qa' },
+        createdBy: 'admin-ui-qa',
+      });
+
+      const promoted = await apiClient.updateCoachHomeworkStatus(created.homework.id, 'in_progress', 'admin-ui-qa');
+      const finished = await apiClient.updateCoachHomeworkStatus(promoted.homework.id, 'completed', 'admin-ui-qa');
+      const fetched = await apiClient.getCoachHomework(finished.homework.id);
+      setQaHomework(fetched);
+      trackEvent('coach_action_executed', {
+        module: 'reports',
+        payload: {
+          action: 'homework_lifecycle_qa',
+          homeworkId: fetched.id,
+          status: fetched.status,
+        },
+      });
+    } catch (err) {
+      setQaError(err instanceof Error ? err.message : 'Homework lifecycle QA failed');
+    } finally {
+      setQaLoading(false);
+    }
+  };
+
+  const statusChipLabel = (status: CoachHomeworkStatus) => {
+    if (status === 'pending') return 'Pending';
+    if (status === 'in_progress') return 'In Progress';
+    if (status === 'completed') return 'Completed';
+    return 'Archived';
+  };
 
   return (
     <section className="mvp-panel" aria-labelledby="reports-title">
@@ -121,6 +167,24 @@ export function ReportsWorkbench() {
           </ul>
         ) : null}
       </article>
+
+      {HOMEWORK_QA_FLAG ? (
+        <article className="mvp-card" data-testid="homework-lifecycle-qa-panel">
+          <h2>Homework lifecycle QA (Admin)</h2>
+          <p className="mvp-muted">Create → In Progress → Completed end-to-end check for coach homework persistence APIs.</p>
+          <button type="button" className="module-next-link" onClick={() => void runHomeworkLifecycleQA()} disabled={qaLoading}>
+            {qaLoading ? 'Running QA...' : 'Run lifecycle QA'}
+          </button>
+          {qaHomework ? (
+            <div className="mvp-inline" style={{ marginTop: 12 }}>
+              <span className="mvp-muted">Homework ID: {qaHomework.id}</span>
+              <strong>{statusChipLabel(qaHomework.status)}</strong>
+              <span className="mvp-muted">Cluster: {qaHomework.sourceLeakCluster}</span>
+            </div>
+          ) : null}
+          {qaError ? <p className="module-error-text">{qaError}</p> : null}
+        </article>
+      ) : null}
 
       {error ? <p className="module-error-text">{error}</p> : null}
     </section>
