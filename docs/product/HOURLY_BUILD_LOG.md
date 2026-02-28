@@ -14,8 +14,9 @@
   - `docs/product/COMMERCIALIZATION_MASTER_TABLE.md`
   - `docs/product/HOURLY_BUILD_LOG.md`
 - Validation:
-  - `python3 -m unittest -q services/api/tests/test_homework_lifecycle.py`
-  - `python3 -m py_compile services/api/app/main.py services/api/app/services.py services/api/app/schemas.py`
+  - `npm run build:api` ✅
+  - `python3 -m py_compile services/api/app/main.py services/api/app/services.py services/api/app/schemas.py` ✅
+  - `PYTHONPATH=services/api python3 -m unittest -q services/api/tests/test_homework_lifecycle.py` ❌ blocked (`ModuleNotFoundError: pydantic`, host deps not installed)
 - Rollout:
   - Dark launch backend APIs first
   - Next run wires admin/mobile UX under feature flags

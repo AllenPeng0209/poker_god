@@ -19,7 +19,7 @@ Current commercialization blocker: AI coach can suggest drills, but homework exe
 - [x] Supabase persistence table + indexes
 - [x] Supports create/query/status update API
 - [x] Invalid status transitions blocked (`409 invalid_status_transition`)
-- [x] Validation/tests pass (`python3 -m unittest -q services/api/tests/test_homework_lifecycle.py`)
+- [ ] Validation/tests pass (blocked on host missing Python deps; see hourly log)
 - [ ] UI usability capture (next run: wire web/mobile state chips + walkthrough recording)
 
 ## API Contract
