@@ -4,8 +4,10 @@ import type {
   AnalyzeHandsResponse,
   AnalyzeUploadCreateRequest,
   AnalyzeUploadResponse,
+  CoachAdminMemoryFunnelResponse,
   CoachChatRequest,
   CoachChatResponse,
+  CoachConversationMemoryResponse,
   CoachCreateDrillRequest,
   CoachCreatePlanRequest,
   CoachCreatePlanResponse,
@@ -168,6 +170,14 @@ export const apiClient = {
       method: 'POST',
       body: JSON.stringify(input),
     });
+  },
+
+  async getCoachConversationMemory(conversationId: string): Promise<CoachConversationMemoryResponse> {
+    return requestJson<CoachConversationMemoryResponse>(`/api/coach/conversations/${conversationId}/memory`);
+  },
+
+  async getAdminCoachMemoryFunnel(minMessages = 2): Promise<CoachAdminMemoryFunnelResponse> {
+    return requestJson<CoachAdminMemoryFunnelResponse>(`/api/admin/coach/memory-funnel?minMessages=${minMessages}`);
   },
 
   async coachCreateDrill(input: CoachCreateDrillRequest): Promise<DrillCreateResponse> {

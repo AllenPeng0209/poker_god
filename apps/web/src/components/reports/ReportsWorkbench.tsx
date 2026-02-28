@@ -14,6 +14,15 @@ export function ReportsWorkbench() {
   const [isLoading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [generatedAt, setGeneratedAt] = useState<string>('');
+  const [coachFunnel, setCoachFunnel] = useState<{
+    conversations: number;
+    totalMessages: number;
+    activeConversations24h: number;
+    homeworkReadyConversations: number;
+    homeworkCoveragePct: number;
+    topThemes: Array<{ key: string; mentions: number; conversationCount: number }>;
+    updatedAt: string;
+  } | null>(null);
   const [items, setItems] = useState<
     Array<{
       id: string;
@@ -33,16 +42,30 @@ export function ReportsWorkbench() {
       setLoading(true);
       setError(null);
       try {
-        const response = await apiClient.getLeakReport(windowDays);
+        const [response, funnel] = await Promise.all([
+          apiClient.getLeakReport(windowDays),
+          apiClient.getAdminCoachMemoryFunnel(2),
+        ]);
         if (cancelled) return;
         setItems(response.items);
         setGeneratedAt(response.generatedAt);
+        setCoachFunnel({
+          conversations: funnel.conversations,
+          totalMessages: funnel.totalMessages,
+          activeConversations24h: funnel.activeConversations24h,
+          homeworkReadyConversations: funnel.homeworkReadyConversations,
+          homeworkCoveragePct: funnel.homeworkCoveragePct,
+          topThemes: funnel.topThemes,
+          updatedAt: funnel.updatedAt,
+        });
         trackEvent('report_opened', {
           module: 'reports',
           requestId: response.requestId,
           payload: {
             windowDays,
             itemCount: response.items.length,
+            coachConversations: funnel.conversations,
+            coachHomeworkCoveragePct: funnel.homeworkCoveragePct,
           },
         });
       } catch (loadError) {
@@ -89,6 +112,45 @@ export function ReportsWorkbench() {
           </label>
           <span className="mvp-muted">{t('reports.generatedAt', { value: generatedAt || '-' })}</span>
         </div>
+      </article>
+
+      <article className="mvp-card">
+        <h2>Coach Memory Funnel (Admin)</h2>
+        {isLoading ? <p className="mvp-muted">Loading coach funnel...</p> : null}
+        {!isLoading && coachFunnel ? (
+          <>
+            <div className="stats-kpis stats-kpis--compact">
+              <div>
+                <span>Conversations</span>
+                <strong>{coachFunnel.conversations}</strong>
+              </div>
+              <div>
+                <span>Messages</span>
+                <strong>{coachFunnel.totalMessages}</strong>
+              </div>
+              <div>
+                <span>Active (24h)</span>
+                <strong>{coachFunnel.activeConversations24h}</strong>
+              </div>
+              <div>
+                <span>Homework coverage</span>
+                <strong>{coachFunnel.homeworkCoveragePct.toFixed(1)}%</strong>
+              </div>
+            </div>
+            <p className="mvp-muted">Updated at {coachFunnel.updatedAt}</p>
+            <ul className="mvp-report-list">
+              {coachFunnel.topThemes.map((theme) => (
+                <li key={theme.key}>
+                  <div className="mvp-report-list__title">
+                    <strong>{theme.key}</strong>
+                    <span>{theme.mentions} mentions</span>
+                  </div>
+                  <p>{theme.conversationCount} conversations contributed to this theme.</p>
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : null}
       </article>
 
       <article className="mvp-card">

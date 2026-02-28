@@ -18,11 +18,13 @@ from .schemas import (
     AnalyzeHandsResponse,
     AnalyzeUploadCreateRequest,
     AnalyzeUploadResponse,
+    CoachAdminMemoryFunnelResponse,
     CoachChatRequest,
     CoachChatResponse,
     CoachCreateDrillRequest,
     CoachCreatePlanRequest,
     CoachCreatePlanResponse,
+    CoachConversationMemoryResponse,
     DrillCreateRequest,
     DrillCreateResponse,
     DrillListResponse,
@@ -51,6 +53,8 @@ from .services import (
     create_drill,
     generate_zen_chat,
     get_analyze_upload,
+    get_coach_conversation_memory,
+    get_coach_memory_funnel,
     get_study_spot_matrix,
     ingest_events,
     list_study_spots,
@@ -396,6 +400,16 @@ def reports_leaks(window_days: int = Query(default=30, alias="windowDays")) -> L
     supabase = get_supabase_client()
     parsed_window = 7 if window_days == 7 else 90 if window_days == 90 else 30
     return build_leak_report(supabase, parsed_window)
+
+
+@app.get("/api/coach/conversations/{conversation_id}/memory", response_model=CoachConversationMemoryResponse)
+def coach_conversation_memory(conversation_id: str) -> CoachConversationMemoryResponse:
+    return get_coach_conversation_memory(conversation_id)
+
+
+@app.get("/api/admin/coach/memory-funnel", response_model=CoachAdminMemoryFunnelResponse)
+def admin_coach_memory_funnel(min_messages: int = Query(default=2, alias="minMessages")) -> CoachAdminMemoryFunnelResponse:
+    return get_coach_memory_funnel(min_messages)
 
 
 @app.post("/api/coach/chat", response_model=CoachChatResponse)
