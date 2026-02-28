@@ -382,6 +382,46 @@ class CoachCreatePlanResponse(BaseModel):
     plan: WeeklyPlan
 
 
+CoachHomeworkStatus = Literal["pending", "in_progress", "completed"]
+
+
+class CoachHomeworkItem(BaseModel):
+    id: str
+    conversationId: str
+    title: str
+    objective: str
+    status: CoachHomeworkStatus
+    createdAt: str
+    updatedAt: str
+
+
+class CoachHomeworkCreateRequest(BaseModel):
+    conversationId: str
+    title: str = Field(min_length=3, max_length=120)
+    objective: str = Field(min_length=3, max_length=500)
+
+
+class CoachHomeworkCreateResponse(BaseModel):
+    requestId: str
+    item: CoachHomeworkItem
+
+
+class CoachHomeworkInboxResponse(BaseModel):
+    requestId: str
+    conversationId: str
+    total: int
+    items: list[CoachHomeworkItem]
+
+
+class CoachHomeworkStatusUpdateRequest(BaseModel):
+    status: CoachHomeworkStatus
+
+
+class CoachHomeworkStatusUpdateResponse(BaseModel):
+    requestId: str
+    item: CoachHomeworkItem
+
+
 AnalyticsEventName = Literal[
     "study_node_opened",
     "drill_started",

@@ -23,6 +23,11 @@ from .schemas import (
     CoachCreateDrillRequest,
     CoachCreatePlanRequest,
     CoachCreatePlanResponse,
+    CoachHomeworkCreateRequest,
+    CoachHomeworkCreateResponse,
+    CoachHomeworkInboxResponse,
+    CoachHomeworkStatusUpdateRequest,
+    CoachHomeworkStatusUpdateResponse,
     DrillCreateRequest,
     DrillCreateResponse,
     DrillListResponse,
@@ -46,6 +51,9 @@ from .services import (
     coach_chat,
     coach_create_drill_action,
     coach_create_plan_action,
+    coach_create_homework_action,
+    coach_list_homework_inbox,
+    coach_update_homework_status,
     complete_practice_session,
     create_analyze_upload,
     create_drill,
@@ -421,6 +429,31 @@ def coach_create_plan(payload: CoachCreatePlanRequest) -> CoachCreatePlanRespons
     result = coach_create_plan_action(supabase, payload)
     if isinstance(result, str):
         return _error(409, "confirmation_required", result)
+    return result
+
+
+@app.post("/api/coach/homework", response_model=CoachHomeworkCreateResponse)
+def coach_create_homework(payload: CoachHomeworkCreateRequest) -> CoachHomeworkCreateResponse:
+    supabase = get_supabase_client()
+    return coach_create_homework_action(supabase, payload)
+
+
+@app.get("/api/coach/homework/inbox", response_model=CoachHomeworkInboxResponse)
+def coach_homework_inbox(conversationId: str = Query(min_length=1, max_length=120)) -> CoachHomeworkInboxResponse:
+    supabase = get_supabase_client()
+    return coach_list_homework_inbox(supabase, conversation_id=conversationId)
+
+
+@app.post("/api/coach/homework/items/{item_id}/status", response_model=CoachHomeworkStatusUpdateResponse)
+def coach_homework_status_update(
+    item_id: str,
+    payload: CoachHomeworkStatusUpdateRequest,
+) -> CoachHomeworkStatusUpdateResponse | JSONResponse:
+    supabase = get_supabase_client()
+    result = coach_update_homework_status(supabase, item_id=item_id, payload=payload)
+    if isinstance(result, str):
+        code = "coach_homework_not_found" if "not found" in result else "coach_homework_invalid_transition"
+        return _error(409, code, result)
     return result
 
 

@@ -25,6 +25,12 @@ from .schemas import (
     CoachCreateDrillRequest,
     CoachCreatePlanRequest,
     CoachCreatePlanResponse,
+    CoachHomeworkCreateRequest,
+    CoachHomeworkCreateResponse,
+    CoachHomeworkInboxResponse,
+    CoachHomeworkItem,
+    CoachHomeworkStatusUpdateRequest,
+    CoachHomeworkStatusUpdateResponse,
     CoachSection,
     Drill,
     DrillCreateRequest,
@@ -1979,6 +1985,82 @@ def coach_create_plan_action(supabase: Client, payload: CoachCreatePlanRequest) 
         createdAt=str(upserted["created_at"]),
     )
     return CoachCreatePlanResponse(requestId=rid, plan=plan)
+
+
+
+def _map_homework_row(row: dict[str, Any]) -> CoachHomeworkItem:
+    return CoachHomeworkItem(
+        id=str(row["id"]),
+        conversationId=str(row["conversation_id"]),
+        title=str(row["title"]),
+        objective=str(row["objective"]),
+        status=str(row["status"]),
+        createdAt=str(row["created_at"]),
+        updatedAt=str(row["updated_at"]),
+    )
+
+
+def coach_create_homework_action(supabase: Client, payload: CoachHomeworkCreateRequest) -> CoachHomeworkCreateResponse:
+    rid = request_id()
+    inserted = (
+        supabase.table("pg_mvp_coach_homework_items")
+        .insert(
+            {
+                "conversation_id": payload.conversationId,
+                "title": payload.title.strip(),
+                "objective": payload.objective.strip(),
+                "status": "pending",
+            }
+        )
+        .execute()
+        .data[0]
+    )
+    return CoachHomeworkCreateResponse(requestId=rid, item=_map_homework_row(inserted))
+
+
+def coach_list_homework_inbox(supabase: Client, conversation_id: str) -> CoachHomeworkInboxResponse:
+    rid = request_id()
+    rows = (
+        supabase.table("pg_mvp_coach_homework_items")
+        .select("*")
+        .eq("conversation_id", conversation_id)
+        .order("created_at", desc=True)
+        .execute()
+        .data
+    )
+    items = [_map_homework_row(row) for row in rows]
+    return CoachHomeworkInboxResponse(requestId=rid, conversationId=conversation_id, total=len(items), items=items)
+
+
+def coach_update_homework_status(
+    supabase: Client,
+    item_id: str,
+    payload: CoachHomeworkStatusUpdateRequest,
+) -> CoachHomeworkStatusUpdateResponse | str:
+    selected = (
+        supabase.table("pg_mvp_coach_homework_items")
+        .select("id, status")
+        .eq("id", item_id)
+        .limit(1)
+        .execute()
+        .data
+    )
+    if not selected:
+        return "homework item not found"
+
+    current_status = str(selected[0]["status"])
+    next_status = payload.status
+    if current_status == "completed" and next_status != "completed":
+        return "completed homework cannot move back to unfinished status"
+
+    updated = (
+        supabase.table("pg_mvp_coach_homework_items")
+        .update({"status": next_status, "updated_at": now_iso()})
+        .eq("id", item_id)
+        .execute()
+        .data[0]
+    )
+    return CoachHomeworkStatusUpdateResponse(requestId=request_id(), item=_map_homework_row(updated))
 
 
 def ingest_events(supabase: Client, events: list[dict[str, Any]]) -> int:
