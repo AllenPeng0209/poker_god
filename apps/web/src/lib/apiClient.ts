@@ -4,6 +4,7 @@ import type {
   AnalyzeHandsResponse,
   AnalyzeUploadCreateRequest,
   AnalyzeUploadResponse,
+  AnalyzeMistakeSummaryResponse,
   CoachChatRequest,
   CoachChatResponse,
   CoachCreateDrillRequest,
@@ -142,14 +143,27 @@ export const apiClient = {
     sortBy?: 'ev_loss' | 'played_at';
     position?: string;
     tag?: string;
+    limit?: number;
+    offset?: number;
   }): Promise<AnalyzeHandsResponse> {
     const query = new URLSearchParams();
     if (filters.uploadId) query.set('uploadId', filters.uploadId);
     if (filters.sortBy) query.set('sortBy', filters.sortBy);
     if (filters.position) query.set('position', filters.position);
     if (filters.tag) query.set('tag', filters.tag);
+    if (typeof filters.limit === 'number') query.set('limit', String(filters.limit));
+    if (typeof filters.offset === 'number') query.set('offset', String(filters.offset));
 
     return requestJson<AnalyzeHandsResponse>(`/api/analyze/hands?${query.toString()}`);
+  },
+
+  async getAnalyzeMistakeSummary(filters?: { uploadId?: string; topN?: number }): Promise<AnalyzeMistakeSummaryResponse> {
+    const query = new URLSearchParams();
+    if (filters?.uploadId) query.set('uploadId', filters.uploadId);
+    if (typeof filters?.topN === 'number') query.set('topN', String(filters.topN));
+    const suffix = query.toString();
+
+    return requestJson<AnalyzeMistakeSummaryResponse>(`/api/analyze/mistakes/summary${suffix ? `?${suffix}` : ''}`);
   },
 
   async getLeakReport(windowDays: 7 | 30 | 90): Promise<LeakReportResponse> {

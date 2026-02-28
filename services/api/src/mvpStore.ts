@@ -6,6 +6,7 @@ import type {
   AnalyzeUpload,
   AnalyzeUploadCreateRequest,
   AnalyzeUploadResponse,
+  AnalyzeMistakeSummaryResponse,
   AnalyzedHand,
   CoachActionSuggestion,
   CoachChatRequest,
@@ -487,6 +488,8 @@ export function listAnalyzeHands(
     sortBy?: 'ev_loss' | 'played_at';
     position?: string;
     tag?: string;
+    limit?: number;
+    offset?: number;
   },
 ): AnalyzeHandsResponse {
   const source = filters.uploadId
@@ -506,9 +509,78 @@ export function listAnalyzeHands(
     return right.evLossBb100 - left.evLossBb100;
   });
 
+  const total = sorted.length;
+  const limit = clamp(filters.limit ?? 50, 1, 200);
+  const offset = clamp(filters.offset ?? 0, 0, Math.max(total - 1, 0));
+  const paged = sorted.slice(offset, offset + limit);
+
   return {
     requestId,
-    hands: sorted,
+    hands: paged,
+    total,
+    limit,
+    offset,
+    hasMore: offset + paged.length < total,
+  };
+}
+
+export function buildAnalyzeMistakeSummary(
+  requestId: string,
+  options: { uploadId?: string; topN?: number },
+): AnalyzeMistakeSummaryResponse {
+  const source = options.uploadId
+    ? (analyzeUploads.get(options.uploadId)?.hands ?? [])
+    : Array.from(analyzeUploads.values()).flatMap((record) => record.hands);
+
+  const rankedByRecent = [...source].sort((left, right) => right.playedAt.localeCompare(left.playedAt));
+  const windowHands = rankedByRecent.slice(0, 300);
+
+  const byTag = new Map<string, { count: number; totalEvLoss: number }>();
+  for (const hand of windowHands) {
+    for (const tag of hand.tags) {
+      const existing = byTag.get(tag) ?? { count: 0, totalEvLoss: 0 };
+      byTag.set(tag, {
+        count: existing.count + 1,
+        totalEvLoss: Number((existing.totalEvLoss + hand.evLossBb100).toFixed(2)),
+      });
+    }
+  }
+
+  const clusters = Array.from(byTag.entries())
+    .map(([tag, value]) => {
+      const averageEvLoss = value.count > 0 ? value.totalEvLoss / value.count : 0;
+      const severity = averageEvLoss >= 18 ? 'critical' : averageEvLoss >= 10 ? 'high' : 'medium';
+      return {
+        tag,
+        handsCount: value.count,
+        averageEvLossBb100: Number(averageEvLoss.toFixed(1)),
+        totalEvLossBb100: Number(value.totalEvLoss.toFixed(1)),
+        severity,
+        recommendation: buildLeakRecommendation(tag),
+      };
+    })
+    .sort((left, right) => right.totalEvLossBb100 - left.totalEvLossBb100);
+
+  const topN = clamp(options.topN ?? 3, 1, 8);
+  const topClusters = clusters.slice(0, topN);
+  const averageEvLossBb100 =
+    windowHands.length > 0
+      ? Number((windowHands.reduce((sum, hand) => sum + hand.evLossBb100, 0) / windowHands.length).toFixed(1))
+      : 0;
+
+  return {
+    requestId,
+    generatedAt: nowIso(),
+    windowHands: windowHands.length,
+    biggestLeakTag: topClusters[0]?.tag ?? null,
+    averageEvLossBb100,
+    topClusters,
+    suggestedHomework: topClusters.map((cluster, index) => ({
+      title: `Leak 修复 Drill #${index + 1}: ${cluster.tag}`,
+      focusTag: cluster.tag,
+      itemCount: cluster.severity === 'critical' ? 28 : cluster.severity === 'high' ? 20 : 14,
+      targetEvRecoveryBb100: Number((cluster.averageEvLossBb100 * 0.4).toFixed(1)),
+    })),
   };
 }
 
