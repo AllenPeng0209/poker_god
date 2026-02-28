@@ -1,6 +1,6 @@
 'use client';
 
-import type { CoachModule, ZenChatMessage, ZenChatResponse } from '@poker-god/contracts';
+import type { CoachHomeworkItem, CoachModule, ZenChatMessage, ZenChatResponse } from '@poker-god/contracts';
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { useI18n } from '@/components/i18n/I18nProvider';
 import { apiClient } from '@/lib/apiClient';
@@ -234,6 +234,8 @@ export function AICoachDrawer({ pathname, isOpen, width, onOpenChange, onWidthCh
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [provider, setProvider] = useState<ZenChatResponse['provider']>('heuristic');
+  const [homework, setHomework] = useState<CoachHomeworkItem[]>([]);
+  const [memorySummary, setMemorySummary] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setLoading] = useState(false);
   const [pendingIntent, setPendingIntent] = useState<StudyIntent | null>(null);
@@ -277,6 +279,13 @@ export function AICoachDrawer({ pathname, isOpen, width, onOpenChange, onWidthCh
     }
     feedRef.current.scrollTop = feedRef.current.scrollHeight;
   }, [isOpen, messages]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+    void refreshHomework();
+  }, [isOpen]);
 
   function requestLatestContext(timeoutMs = 1000): Promise<CoachContextEvent | null> {
     return new Promise((resolve) => {
@@ -363,6 +372,18 @@ export function AICoachDrawer({ pathname, isOpen, width, onOpenChange, onWidthCh
     }
   }
 
+  async function refreshHomework() {
+    try {
+      const response = await apiClient.coachHomework(conversationId);
+      setHomework(response.homework);
+      setMemorySummary(
+        `Msgs ${response.memory.totalMessages} · Focus ${response.memory.dominantModule}/${response.memory.dominantMode}`,
+      );
+    } catch {
+      // non-blocking widget
+    }
+  }
+
   async function handleAsk(overridePrompt?: string) {
     if (!module || isLoading) {
       return;
@@ -443,6 +464,7 @@ export function AICoachDrawer({ pathname, isOpen, width, onOpenChange, onWidthCh
           parsedStudyIntent: Boolean(inferredIntent),
         },
       });
+      void refreshHomework();
     } catch (askError) {
       setError(askError instanceof Error ? askError.message : t('coach.errors.requestFailed'));
     } finally {
@@ -520,6 +542,32 @@ export function AICoachDrawer({ pathname, isOpen, width, onOpenChange, onWidthCh
                   {suggestion}
                 </button>
               ))}
+            </div>
+          ) : null}
+
+          {homework.length > 0 ? (
+            <div className="wizard-coach__intent" style={{ marginBottom: '0.75rem' }}>
+              <strong>{locale === 'zh-CN' ? '个性化作业' : 'Personalized Homework'}</strong>
+              <p>{memorySummary}</p>
+              <div className="wizard-coach__suggestions">
+                {homework.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className="wizard-coach__chip"
+                    onClick={() =>
+                      void handleAsk(
+                        locale === 'zh-CN'
+                          ? `根据作业「${item.title}」生成 ${item.suggestedDrillSize} 题训练，并解释评估标准。`
+                          : `Create a ${item.suggestedDrillSize}-question drill for homework "${item.title}" and include evaluation criteria.`,
+                      )
+                    }
+                    disabled={isLoading}
+                  >
+                    {item.priority.toUpperCase()} · {item.title}
+                  </button>
+                ))}
+              </div>
             </div>
           ) : null}
 

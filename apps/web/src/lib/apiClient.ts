@@ -9,6 +9,7 @@ import type {
   CoachCreateDrillRequest,
   CoachCreatePlanRequest,
   CoachCreatePlanResponse,
+  CoachHomeworkResponse,
   DrillCreateRequest,
   DrillCreateResponse,
   DrillListResponse,
@@ -182,6 +183,10 @@ export const apiClient = {
       method: 'POST',
       body: JSON.stringify(input),
     });
+  },
+
+  async coachHomework(conversationId: string): Promise<CoachHomeworkResponse> {
+    return requestJson<CoachHomeworkResponse>(`/api/coach/conversations/${conversationId}/homework`);
   },
 
   async ingestEvents(events: AnalyticsEvent[]): Promise<AnalyticsIngestResponse> {

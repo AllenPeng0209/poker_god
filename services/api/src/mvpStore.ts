@@ -12,6 +12,9 @@ import type {
   CoachChatResponse,
   CoachCreatePlanRequest,
   CoachCreatePlanResponse,
+  CoachConversationMemory,
+  CoachHomeworkItem,
+  CoachHomeworkResponse,
   Drill,
   DrillCreateRequest,
   DrillCreateResponse,
@@ -47,10 +50,22 @@ type AnalyzeUploadRecord = {
   hands: AnalyzedHand[];
 };
 
+type CoachConversationRecord = {
+  conversationId: string;
+  messages: Array<{
+    module: CoachChatRequest['module'];
+    mode: CoachChatRequest['mode'];
+    message: string;
+    createdAt: string;
+  }>;
+  updatedAt: string;
+};
+
 const drills = new Map<string, Drill>();
 const practiceSessions = new Map<string, PracticeSessionRecord>();
 const analyzeUploads = new Map<string, AnalyzeUploadRecord>();
 const weeklyPlans = new Map<string, WeeklyPlan>();
+const coachConversations = new Map<string, CoachConversationRecord>();
 const analyticsEvents: AnalyticsEvent[] = [];
 
 const POSITION_ROTATION = ['UTG', 'HJ', 'CO', 'BTN', 'SB', 'BB'] as const;
@@ -264,6 +279,87 @@ function buildCoachActions(input: CoachChatRequest): CoachActionSuggestion[] {
       payload: { itemCount: input.mode === 'Drill' ? 24 : 12, sourceRefId: input.conversationId },
     },
   ];
+}
+
+function trackCoachConversation(input: CoachChatRequest) {
+  const existing = coachConversations.get(input.conversationId);
+  const nextMessages = [
+    ...(existing?.messages ?? []),
+    {
+      module: input.module,
+      mode: input.mode,
+      message: input.message.trim(),
+      createdAt: nowIso(),
+    },
+  ].slice(-80);
+
+  coachConversations.set(input.conversationId, {
+    conversationId: input.conversationId,
+    messages: nextMessages,
+    updatedAt: nowIso(),
+  });
+}
+
+function inferLeakTagsFromText(messages: string[]) {
+  const leakKeywords = [
+    ['overbluff', 'over_bluff'],
+    ['underbluff', 'under_bluff'],
+    ['missed value', 'missed_value'],
+    ['overfold', 'over_fold'],
+    ['size mismatch', 'size_mismatch'],
+    ['check raise', 'check_raise_defense'],
+    ['c-bet', 'cbet_frequency'],
+  ] as const;
+
+  const lowered = messages.join(' ').toLowerCase();
+  return leakKeywords
+    .filter(([keyword]) => lowered.includes(keyword))
+    .map(([, tag]) => tag)
+    .slice(0, 5);
+}
+
+function buildCoachMemory(record: CoachConversationRecord): CoachConversationMemory {
+  const moduleCount = new Map<CoachChatRequest['module'], number>();
+  const modeCount = new Map<CoachChatRequest['mode'], number>();
+  for (const message of record.messages) {
+    moduleCount.set(message.module, (moduleCount.get(message.module) ?? 0) + 1);
+    modeCount.set(message.mode, (modeCount.get(message.mode) ?? 0) + 1);
+  }
+
+  const dominantModule =
+    Array.from(moduleCount.entries()).sort((left, right) => right[1] - left[1])[0]?.[0] ?? 'study';
+  const dominantMode =
+    Array.from(modeCount.entries()).sort((left, right) => right[1] - left[1])[0]?.[0] ?? 'Fix';
+
+  return {
+    conversationId: record.conversationId,
+    totalMessages: record.messages.length,
+    dominantModule,
+    dominantMode,
+    keyLeakTags: inferLeakTagsFromText(record.messages.map((item) => item.message)),
+    updatedAt: record.updatedAt,
+  };
+}
+
+function buildHomeworkFromConversation(record: CoachConversationRecord): CoachHomeworkItem[] {
+  const recentMessages = record.messages.slice(-6);
+  if (recentMessages.length === 0) {
+    return [];
+  }
+
+  return recentMessages.slice(-3).map((item, index) => {
+    const suggestedDrillSize = item.mode === 'Drill' ? 24 : item.mode === 'Fix' ? 18 : 12;
+    return {
+      id: `${record.conversationId}-${index}`,
+      title: `Homework ${index + 1}: ${item.module.toUpperCase()} ${item.mode}`,
+      rationale: `围绕「${item.message.slice(0, 48)}${item.message.length > 48 ? '…' : ''}」做针对性复训，验证 EV loss 是否下降。`,
+      module: item.module,
+      sourceMessage: item.message,
+      suggestedDrillSize,
+      priority: index === 0 ? 'high' : index === 1 ? 'medium' : 'low',
+      createdAt: item.createdAt,
+    } satisfies CoachHomeworkItem;
+  });
 }
 
 export function listDrills(requestId: string): DrillListResponse {
@@ -569,6 +665,7 @@ export function buildLeakReport(requestId: string, windowDays: 7 | 30 | 90): Lea
 }
 
 export function coachChat(requestId: string, input: CoachChatRequest): CoachChatResponse {
+  trackCoachConversation(input);
   return {
     requestId,
     conversationId: input.conversationId,
@@ -576,6 +673,20 @@ export function coachChat(requestId: string, input: CoachChatRequest): CoachChat
     sections: buildCoachSections(input),
     actions: buildCoachActions(input),
     createdAt: nowIso(),
+  };
+}
+
+export function getCoachHomework(requestId: string, conversationId: string): CoachHomeworkResponse {
+  const record = coachConversations.get(conversationId) ?? {
+    conversationId,
+    messages: [],
+    updatedAt: nowIso(),
+  };
+
+  return {
+    requestId,
+    memory: buildCoachMemory(record),
+    homework: buildHomeworkFromConversation(record),
   };
 }
 

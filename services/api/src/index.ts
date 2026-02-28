@@ -11,6 +11,7 @@ import type {
   CoachCreateDrillRequest,
   CoachCreatePlanRequest,
   CoachCreatePlanResponse,
+  CoachHomeworkResponse,
   DrillCreateRequest,
   DrillCreateResponse,
   DrillListResponse,
@@ -35,6 +36,7 @@ import {
   createAnalyzeUpload,
   createDrill,
   getAnalyzeUpload,
+  getCoachHomework,
   ingestAnalyticsEvents,
   listAnalyzeHands,
   listDrills,
@@ -284,6 +286,15 @@ app.post<{ Body: CoachChatRequest }>(
     }
 
     return coachChat(id, { ...body, message });
+  },
+);
+
+app.get<{ Params: { conversationId: string } }>(
+  '/api/coach/conversations/:conversationId/homework',
+  async (
+    request,
+  ): Promise<CoachHomeworkResponse> => {
+    return getCoachHomework(requestId(), request.params.conversationId);
   },
 );
 

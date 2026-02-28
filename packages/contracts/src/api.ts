@@ -304,7 +304,7 @@ export interface CoachChatRequest {
 }
 
 export type CoachSectionName = '结论' | '依据数据' | '行动建议' | '风险提示' | '置信度';
-export type CoachActionType = 'create_drill' | 'create_plan';
+export type CoachActionType = 'create_drill' | 'create_plan' | 'create_homework_drill';
 
 export interface CoachSection {
   name: CoachSectionName;
@@ -354,6 +354,32 @@ export interface CoachCreatePlanRequest {
 export interface CoachCreatePlanResponse {
   requestId: string;
   plan: WeeklyPlan;
+}
+
+export interface CoachHomeworkItem {
+  id: string;
+  title: string;
+  rationale: string;
+  module: CoachModule;
+  sourceMessage: string;
+  suggestedDrillSize: number;
+  priority: 'high' | 'medium' | 'low';
+  createdAt: string;
+}
+
+export interface CoachConversationMemory {
+  conversationId: string;
+  totalMessages: number;
+  dominantModule: CoachModule;
+  dominantMode: CoachMode;
+  keyLeakTags: string[];
+  updatedAt: string;
+}
+
+export interface CoachHomeworkResponse {
+  requestId: string;
+  memory: CoachConversationMemory;
+  homework: CoachHomeworkItem[];
 }
 
 export type AnalyticsEventName =
