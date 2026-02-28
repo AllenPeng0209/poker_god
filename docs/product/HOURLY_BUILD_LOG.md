@@ -12,6 +12,6 @@
   - `tasks/prd-poker-god-hourly-commercialization.md` (workspace PRD evidence)
 - Validation:
   - `npx tsc -p apps/mobile/tsconfig.json --noEmit` ✅
-- Push result: pending (run after commit).
+- Push result: success (`origin/pg/hourly-20260301-0727-mobile-retention-radar`, commit `036a2d9`).
 - Blockers: none.
 - Next action: implement US-003 campaign creation API + admin launch entry under feature flag.
