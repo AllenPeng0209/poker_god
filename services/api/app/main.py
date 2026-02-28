@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from collections import defaultdict, deque
 from datetime import UTC, datetime
 from threading import Lock
@@ -29,6 +30,8 @@ from .schemas import (
     ErrorBody,
     HealthResponse,
     LeakReportResponse,
+    MainlineReadinessCheck,
+    MainlineReadinessResponse,
     PracticeCompleteSessionResponse,
     PracticeSessionStartRequest,
     PracticeSessionStartResponse,
@@ -75,6 +78,15 @@ def _parse_cors_origins(raw: str) -> list[str]:
     if value == "*" or not value:
         return ["*"]
     return [part.strip() for part in value.split(",") if part.strip()]
+
+
+def _env_bool(name: str, default: bool = False) -> bool:
+    value = os.getenv(name, "").strip().lower()
+    if value in {"1", "true", "yes", "on"}:
+        return True
+    if value in {"0", "false", "no", "off"}:
+        return False
+    return default
 
 
 def _error(
@@ -247,6 +259,94 @@ def ready(request: Request) -> JSONResponse:
             "requestId": rid,
             "timestamp": datetime.now(UTC).isoformat(),
         },
+    )
+
+
+def _mainline_overall_status(checks: list[MainlineReadinessCheck]) -> str:
+    if any(check.status == "fail" for check in checks):
+        return "fail"
+    if any(check.status == "warn" for check in checks):
+        return "warn"
+    return "pass"
+
+
+@app.get("/api/admin/mainline-readiness", response_model=MainlineReadinessResponse)
+def admin_mainline_readiness() -> MainlineReadinessResponse:
+    checks: list[MainlineReadinessCheck] = []
+
+    db_started = perf_counter()
+    try:
+        supabase = get_supabase_client()
+        supabase.table("pg_mvp_study_spots").select("id", count="exact").limit(1).execute()
+        supabase.table("pg_mvp_drills").select("id", count="exact").limit(1).execute()
+        db_ms = round((perf_counter() - db_started) * 1000, 2)
+        checks.append(
+            MainlineReadinessCheck(
+                key="supabase_connectivity",
+                label="Supabase connectivity",
+                status="pass",
+                detail="Supabase reachable and core tables queryable.",
+                observedMs=db_ms,
+            ),
+        )
+    except Exception as exc:  # noqa: BLE001
+        db_ms = round((perf_counter() - db_started) * 1000, 2)
+        checks.append(
+            MainlineReadinessCheck(
+                key="supabase_connectivity",
+                label="Supabase connectivity",
+                status="fail",
+                detail=f"Supabase check failed: {exc}",
+                observedMs=db_ms,
+            ),
+        )
+
+    checks.append(
+        MainlineReadinessCheck(
+            key="api_key_write_guard",
+            label="Write API key guard",
+            status="pass" if settings.api_key_required else "warn",
+            detail=(
+                "Write endpoints require API key auth."
+                if settings.api_key_required
+                else "API key auth disabled for write endpoints; keep only for internal/staging."
+            ),
+        ),
+    )
+
+    coach_homework_flag = _env_bool("COACH_HOMEWORK_SUPABASE_V1", default=True)
+    checks.append(
+        MainlineReadinessCheck(
+            key="coach_homework_flag",
+            label="Coach homework persistence flag",
+            status="pass" if coach_homework_flag else "warn",
+            detail=(
+                "COACH_HOMEWORK_SUPABASE_V1 enabled."
+                if coach_homework_flag
+                else "COACH_HOMEWORK_SUPABASE_V1 disabled; homework attach path is degraded."
+            ),
+        ),
+    )
+
+    campaign_flag = _env_bool("ADMIN_CAMPAIGN_LAUNCH_V1", default=True)
+    checks.append(
+        MainlineReadinessCheck(
+            key="admin_campaign_launch_flag",
+            label="Admin campaign launch flag",
+            status="pass" if campaign_flag else "warn",
+            detail=(
+                "ADMIN_CAMPAIGN_LAUNCH_V1 enabled."
+                if campaign_flag
+                else "ADMIN_CAMPAIGN_LAUNCH_V1 disabled; leak-to-homework campaign CTA hidden."
+            ),
+        ),
+    )
+
+    return MainlineReadinessResponse(
+        requestId=request_id(),
+        generatedAt=datetime.now(UTC).isoformat(),
+        status=_mainline_overall_status(checks),  # type: ignore[arg-type]
+        checks=checks,
     )
 
 

@@ -10,6 +10,23 @@ export interface TrainingZonesResponse {
   zones: TrainingZone[];
 }
 
+export type MainlineReadinessStatus = 'pass' | 'warn' | 'fail';
+
+export interface MainlineReadinessCheck {
+  key: string;
+  label: string;
+  status: MainlineReadinessStatus;
+  detail: string;
+  observedMs?: number;
+}
+
+export interface MainlineReadinessResponse {
+  requestId: string;
+  generatedAt: string;
+  status: MainlineReadinessStatus;
+  checks: MainlineReadinessCheck[];
+}
+
 export type StudySpotFormat = 'Cash 6-max' | 'Cash Heads-Up' | 'MTT 9-max';
 export type StudySpotPosition = 'BTN vs BB' | 'CO vs BTN' | 'SB vs BB' | 'UTG vs BB';
 export type StudySpotStackBb = 20 | 40 | 60 | 100 | 200;

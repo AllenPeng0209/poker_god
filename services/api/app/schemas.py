@@ -18,6 +18,24 @@ class HealthResponse(BaseModel):
     timestamp: str
 
 
+MainlineReadinessStatus = Literal["pass", "warn", "fail"]
+
+
+class MainlineReadinessCheck(BaseModel):
+    key: str
+    label: str
+    status: MainlineReadinessStatus
+    detail: str
+    observedMs: float | None = None
+
+
+class MainlineReadinessResponse(BaseModel):
+    requestId: str
+    generatedAt: str
+    status: MainlineReadinessStatus
+    checks: list[MainlineReadinessCheck]
+
+
 class TrainingZone(BaseModel):
     id: str
     key: str

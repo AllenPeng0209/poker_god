@@ -13,6 +13,7 @@ import type {
   DrillCreateResponse,
   DrillListResponse,
   LeakReportResponse,
+  MainlineReadinessResponse,
   PracticeCompleteSessionResponse,
   PracticeSessionStartRequest,
   PracticeSessionStartResponse,
@@ -154,6 +155,10 @@ export const apiClient = {
 
   async getLeakReport(windowDays: 7 | 30 | 90): Promise<LeakReportResponse> {
     return requestJson<LeakReportResponse>(`/api/reports/leaks?windowDays=${windowDays}`);
+  },
+
+  async getMainlineReadiness(): Promise<MainlineReadinessResponse> {
+    return requestJson<MainlineReadinessResponse>('/api/admin/mainline-readiness');
   },
 
   async zenChat(input: ZenChatRequest): Promise<ZenChatResponse> {

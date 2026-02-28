@@ -14,6 +14,17 @@ export function ReportsWorkbench() {
   const [isLoading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [generatedAt, setGeneratedAt] = useState<string>('');
+  const [readiness, setReadiness] = useState<{
+    status: 'pass' | 'warn' | 'fail';
+    generatedAt: string;
+    checks: Array<{
+      key: string;
+      label: string;
+      status: 'pass' | 'warn' | 'fail';
+      detail: string;
+      observedMs?: number;
+    }>;
+  } | null>(null);
   const [items, setItems] = useState<
     Array<{
       id: string;
@@ -33,16 +44,21 @@ export function ReportsWorkbench() {
       setLoading(true);
       setError(null);
       try {
-        const response = await apiClient.getLeakReport(windowDays);
+        const [response, readinessResponse] = await Promise.all([
+          apiClient.getLeakReport(windowDays),
+          apiClient.getMainlineReadiness(),
+        ]);
         if (cancelled) return;
         setItems(response.items);
         setGeneratedAt(response.generatedAt);
+        setReadiness(readinessResponse);
         trackEvent('report_opened', {
           module: 'reports',
           requestId: response.requestId,
           payload: {
             windowDays,
             itemCount: response.items.length,
+            readinessStatus: readinessResponse.status,
           },
         });
       } catch (loadError) {
@@ -89,6 +105,30 @@ export function ReportsWorkbench() {
           </label>
           <span className="mvp-muted">{t('reports.generatedAt', { value: generatedAt || '-' })}</span>
         </div>
+      </article>
+
+      <article className="mvp-card">
+        <h2>Mainline readiness</h2>
+        {isLoading ? <p className="mvp-muted">Loading readiness checks...</p> : null}
+        {!isLoading && readiness ? (
+          <>
+            <p>
+              Overall status: <strong>{readiness.status.toUpperCase()}</strong> · generated at {readiness.generatedAt}
+            </p>
+            <ul className="mvp-report-list">
+              {readiness.checks.map((check) => (
+                <li key={check.key}>
+                  <div className="mvp-report-list__title">
+                    <strong>{check.label}</strong>
+                    <span>{check.status.toUpperCase()}</span>
+                  </div>
+                  <p>{check.detail}</p>
+                  {typeof check.observedMs === 'number' ? <p className="mvp-muted">Observed {check.observedMs} ms</p> : null}
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : null}
       </article>
 
       <article className="mvp-card">
