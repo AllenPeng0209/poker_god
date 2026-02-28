@@ -33,6 +33,34 @@ type ApiErrorResponse = {
 const DEFAULT_API_BASE = 'http://localhost:3001';
 const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL ?? DEFAULT_API_BASE).replace(/\/+$/, '');
 const PUBLIC_API_KEY = (process.env.NEXT_PUBLIC_API_KEY ?? '').trim();
+const REQUEST_TIMEOUT_MS = Number(process.env.NEXT_PUBLIC_API_TIMEOUT_MS ?? 8000);
+const RETRY_ENABLED = process.env.NEXT_PUBLIC_API_RETRY_V1 === '1';
+const RETRYABLE_METHODS = new Set(['GET', 'HEAD']);
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function nextRequestId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `req_${Date.now()}_${Math.random().toString(16).slice(2, 10)}`;
+}
+
+function parseRetryAfter(response: Response): number | null {
+  const retryAfter = response.headers.get('Retry-After');
+  if (!retryAfter) return null;
+
+  const numericSeconds = Number(retryAfter);
+  if (Number.isFinite(numericSeconds) && numericSeconds > 0) {
+    return Math.min(numericSeconds * 1000, 3000);
+  }
+
+  const absolute = Date.parse(retryAfter);
+  if (Number.isNaN(absolute)) return null;
+  return Math.max(0, Math.min(absolute - Date.now(), 3000));
+}
 
 async function parseError(response: Response): Promise<Error> {
   let errorMessage = `Request failed with status ${response.status}`;
@@ -49,21 +77,72 @@ async function parseError(response: Response): Promise<Error> {
   return new Error(errorMessage);
 }
 
-async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(PUBLIC_API_KEY ? { 'x-api-key': PUBLIC_API_KEY } : {}),
-      ...(init?.headers ?? {}),
-    },
-  });
+type RequestOptions = RequestInit & {
+  timeoutMs?: number;
+  retry?: boolean;
+};
 
-  if (!response.ok) {
-    throw await parseError(response);
+async function requestJson<T>(path: string, init?: RequestOptions): Promise<T> {
+  const method = (init?.method ?? 'GET').toUpperCase();
+  const timeoutMs = init?.timeoutMs ?? REQUEST_TIMEOUT_MS;
+  const retryable = RETRY_ENABLED && (init?.retry ?? RETRYABLE_METHODS.has(method));
+  const maxAttempts = retryable ? 2 : 1;
+
+  let lastError: Error | null = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const abortController = new AbortController();
+    const timeoutHandle = setTimeout(() => abortController.abort(new Error('request_timeout')), timeoutMs);
+
+    try {
+      const requestId = nextRequestId();
+      const response = await fetch(`${API_BASE_URL}${path}`, {
+        ...init,
+        signal: abortController.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          'x-request-id': requestId,
+          ...(PUBLIC_API_KEY ? { 'x-api-key': PUBLIC_API_KEY } : {}),
+          ...(init?.headers ?? {}),
+        },
+      });
+
+      clearTimeout(timeoutHandle);
+
+      if (!response.ok) {
+        const statusRetryable = response.status >= 500 || response.status === 429;
+        const canRetry = retryable && attempt < maxAttempts && statusRetryable;
+
+        if (canRetry) {
+          const serverBackoff = parseRetryAfter(response);
+          const jitterBackoff = 250 + Math.floor(Math.random() * 250);
+          await sleep(serverBackoff ?? jitterBackoff);
+          continue;
+        }
+
+        throw await parseError(response);
+      }
+
+      return response.json() as Promise<T>;
+    } catch (error) {
+      clearTimeout(timeoutHandle);
+      const requestError = error instanceof Error ? error : new Error(String(error));
+      const isAbort = requestError.name === 'AbortError' || requestError.message.includes('request_timeout');
+      const canRetry = retryable && attempt < maxAttempts && isAbort;
+      lastError = isAbort
+        ? new Error('请求超时，请检查网络后重试。')
+        : requestError;
+
+      if (canRetry) {
+        await sleep(250 + Math.floor(Math.random() * 250));
+        continue;
+      }
+
+      break;
+    }
   }
 
-  return response.json() as Promise<T>;
+  throw lastError ?? new Error('unknown_request_error');
 }
 
 export const apiClient = {
@@ -71,6 +150,7 @@ export const apiClient = {
     return requestJson<DrillCreateResponse>('/api/practice/drills', {
       method: 'POST',
       body: JSON.stringify(input),
+      retry: false,
     });
   },
 
@@ -106,6 +186,7 @@ export const apiClient = {
     return requestJson<PracticeSessionStartResponse>('/api/practice/sessions/start', {
       method: 'POST',
       body: JSON.stringify(input),
+      retry: false,
     });
   },
 
@@ -116,6 +197,7 @@ export const apiClient = {
     return requestJson<PracticeSubmitAnswerResponse>(`/api/practice/sessions/${sessionId}/answer`, {
       method: 'POST',
       body: JSON.stringify(input),
+      retry: false,
     });
   },
 
@@ -123,6 +205,7 @@ export const apiClient = {
     return requestJson<PracticeCompleteSessionResponse>(`/api/practice/sessions/${sessionId}/complete`, {
       method: 'POST',
       body: JSON.stringify({}),
+      retry: false,
     });
   },
 
@@ -130,6 +213,7 @@ export const apiClient = {
     return requestJson<AnalyzeUploadResponse>('/api/analyze/uploads', {
       method: 'POST',
       body: JSON.stringify(input),
+      retry: false,
     });
   },
 
@@ -160,6 +244,7 @@ export const apiClient = {
     return requestJson<ZenChatResponse>('/api/zen/chat', {
       method: 'POST',
       body: JSON.stringify(input),
+      retry: false,
     });
   },
 
@@ -167,6 +252,7 @@ export const apiClient = {
     return requestJson<CoachChatResponse>('/api/coach/chat', {
       method: 'POST',
       body: JSON.stringify(input),
+      retry: false,
     });
   },
 
@@ -174,6 +260,7 @@ export const apiClient = {
     return requestJson<DrillCreateResponse>('/api/coach/actions/create-drill', {
       method: 'POST',
       body: JSON.stringify(input),
+      retry: false,
     });
   },
 
@@ -181,6 +268,7 @@ export const apiClient = {
     return requestJson<CoachCreatePlanResponse>('/api/coach/actions/create-plan', {
       method: 'POST',
       body: JSON.stringify(input),
+      retry: false,
     });
   },
 
@@ -188,6 +276,7 @@ export const apiClient = {
     return requestJson<AnalyticsIngestResponse>('/api/events', {
       method: 'POST',
       body: JSON.stringify({ events }),
+      retry: false,
     });
   },
 };
