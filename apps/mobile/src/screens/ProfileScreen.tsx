@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+
+import { fetchHomeworkRetention, type HomeworkRetentionSnapshot } from '../services/homeworkRetentionApi';
 
 type AppLanguage = 'zh-TW' | 'zh-CN' | 'en-US';
 type LanguageOption = { key: AppLanguage; label: string };
@@ -47,6 +49,15 @@ function toggleLabel(language: AppLanguage, enabled: boolean): string {
   return l(language, '關閉', '关闭', 'Off');
 }
 
+const mobileHomeworkRetentionEnabled = process.env.EXPO_PUBLIC_MOBILE_HOMEWORK_RETENTION_V1 === '1';
+
+function retentionStageLabel(language: AppLanguage, key: string, fallback: string): string {
+  if (key === 'coach_action_executed') return l(language, '教練建議下發', '教练建议下发', 'Coach Action Issued');
+  if (key === 'drill_started') return l(language, '作業開始', '作业开始', 'Homework Started');
+  if (key === 'drill_completed') return l(language, '作業完成', '作业完成', 'Homework Completed');
+  return fallback;
+}
+
 export function ProfileScreen({
   language,
   profileName,
@@ -74,6 +85,30 @@ export function ProfileScreen({
   onTogglePoliteMode,
 }: ProfileScreenProps) {
   const wr = winRate(handsPlayed, handsWon);
+  const [retentionSnapshot, setRetentionSnapshot] = useState<HomeworkRetentionSnapshot | null>(null);
+  const [retentionLoading, setRetentionLoading] = useState(false);
+  const [retentionError, setRetentionError] = useState<string | null>(null);
+
+  const stageRows = useMemo(() => retentionSnapshot?.stages ?? [], [retentionSnapshot]);
+
+  const loadRetention = useCallback(async () => {
+    if (!mobileHomeworkRetentionEnabled) return;
+    setRetentionLoading(true);
+    setRetentionError(null);
+    try {
+      const snapshot = await fetchHomeworkRetention(30);
+      setRetentionSnapshot(snapshot);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'retention_fetch_failed_unknown';
+      setRetentionError(message);
+    } finally {
+      setRetentionLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadRetention();
+  }, [loadRetention]);
 
   return (
     <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -149,6 +184,51 @@ export function ProfileScreen({
           <Text style={styles.actionBtnText}>{l(language, '管理訂閱', '管理订阅', 'Manage Subscription')}</Text>
         </Pressable>
       </View>
+
+      {mobileHomeworkRetentionEnabled ? (
+        <View style={styles.card}>
+          <View style={styles.adminCardHeader}>
+            <Text style={styles.cardTitle}>{l(language, '作業留存雷達（行動）', '作业留存雷达（移动）', 'Homework Retention Radar (Mobile)')}</Text>
+            <Pressable onPress={() => { void loadRetention(); }} style={({ pressed }) => [styles.refreshBtn, pressed && styles.pressed]}>
+              <Text style={styles.refreshBtnText}>{l(language, '刷新', '刷新', 'Refresh')}</Text>
+            </Pressable>
+          </View>
+          <Text style={styles.cardHint}>{l(language, '觀察教練建議→作業開始→作業完成的留存轉化。', '观察教练建议→作业开始→作业完成的留存转化。', 'Track retention from coach action → drill started → drill completed.')}</Text>
+          {retentionLoading ? <Text style={styles.cardHint}>{l(language, '載入中...', '加载中...', 'Loading...')}</Text> : null}
+          {retentionError ? <Text style={styles.errorText}>{retentionError}</Text> : null}
+          {retentionSnapshot ? (
+            <View style={styles.retentionBody}>
+              <View style={styles.retentionKpiRow}>
+                <Text style={styles.retentionKpiLabel}>{l(language, 'Attach', 'Attach', 'Attach')}</Text>
+                <Text style={styles.retentionKpiValue}>{retentionSnapshot.attachRatePct.toFixed(1)}%</Text>
+              </View>
+              <View style={styles.retentionKpiRow}>
+                <Text style={styles.retentionKpiLabel}>{l(language, 'Completion', 'Completion', 'Completion')}</Text>
+                <Text style={styles.retentionKpiValue}>{retentionSnapshot.completionRatePct.toFixed(1)}%</Text>
+              </View>
+              <View style={styles.retentionKpiRow}>
+                <Text style={styles.retentionKpiLabel}>{l(language, 'Stale Risk', 'Stale Risk', 'Stale Risk')}</Text>
+                <Text style={styles.retentionKpiValue}>{retentionSnapshot.staleRiskRatePct.toFixed(1)}%</Text>
+              </View>
+              {stageRows.map((stage) => (
+                <View key={stage.key} style={styles.stageRow}>
+                  <Text style={styles.stageLabel}>{retentionStageLabel(language, stage.key, stage.label)}</Text>
+                  <Text style={styles.stageValue}>
+                    {stage.sessions}
+                    {stage.conversionFromPreviousPct == null ? '' : ` • ${stage.conversionFromPreviousPct.toFixed(1)}%`}
+                  </Text>
+                </View>
+              ))}
+              {retentionSnapshot.biggestDropStageKey ? (
+                <Text style={styles.warningText}>
+                  {l(language, '最大流失節點：', '最大流失节点：', 'Biggest drop stage: ')}
+                  {retentionStageLabel(language, retentionSnapshot.biggestDropStageKey, retentionSnapshot.biggestDropStageKey)}
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
+        </View>
+      ) : null}
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>{l(language, '通用設定', '通用设置', 'General Settings')}</Text>
@@ -341,6 +421,78 @@ const styles = StyleSheet.create({
     color: '#f6ecb9',
     fontSize: 18,
     fontWeight: '900',
+  },
+  adminCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 8,
+  },
+  refreshBtn: {
+    borderWidth: 1,
+    borderColor: '#86f6ff',
+    borderRadius: 8,
+    backgroundColor: '#1f4b69',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  refreshBtnText: {
+    color: '#ebfcff',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  retentionBody: {
+    gap: 6,
+    marginTop: 2,
+  },
+  retentionKpiRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  retentionKpiLabel: {
+    color: '#9cc6d8',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  retentionKpiValue: {
+    color: '#f3fffc',
+    fontSize: 12,
+    fontWeight: '900',
+    fontFamily: 'monospace',
+  },
+  stageRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#33586b',
+    borderRadius: 8,
+    backgroundColor: '#122f40',
+    paddingHorizontal: 8,
+    paddingVertical: 7,
+  },
+  stageLabel: {
+    color: '#d9eff8',
+    fontSize: 11,
+    fontWeight: '700',
+    flex: 1,
+  },
+  stageValue: {
+    color: '#efffff',
+    fontSize: 11,
+    fontWeight: '800',
+    fontFamily: 'monospace',
+  },
+  warningText: {
+    color: '#ffdca7',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  errorText: {
+    color: '#ffb8c6',
+    fontSize: 11,
+    fontWeight: '700',
   },
   settingRow: {
     flexDirection: 'row',
