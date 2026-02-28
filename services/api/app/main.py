@@ -36,6 +36,7 @@ from .schemas import (
     PracticeSubmitAnswerResponse,
     StudySpotListResponse,
     StudySpotMatrixResponse,
+    StudyCacheHealthResponse,
     TrainingZone,
     TrainingZonesResponse,
     ZenChatRequest,
@@ -55,6 +56,7 @@ from .services import (
     ingest_events,
     list_study_spots,
     list_analyze_hands,
+    study_cache_health,
     list_drills,
     process_analyze_upload,
     request_id,
@@ -311,6 +313,13 @@ def study_spot_matrix(spot_id: str, response: Response) -> StudySpotMatrixRespon
     response.headers["Cache-Control"] = "public, max-age=60, stale-while-revalidate=300"
     return result
 
+
+
+
+@app.get("/api/admin/study/cache-health", response_model=StudyCacheHealthResponse)
+def admin_study_cache_health() -> StudyCacheHealthResponse:
+    metrics = study_cache_health()
+    return StudyCacheHealthResponse(requestId=request_id(), **metrics)
 
 @app.post("/api/zen/chat", response_model=ZenChatResponse)
 def zen_chat(payload: ZenChatRequest) -> ZenChatResponse | JSONResponse:

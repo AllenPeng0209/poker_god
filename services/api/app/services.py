@@ -5,6 +5,7 @@ import json
 import os
 import time
 from collections import defaultdict
+from threading import Lock
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import uuid4
@@ -49,6 +50,103 @@ from .schemas import (
     ZenChatRequest,
     ZenChatResponse,
 )
+
+
+_study_cache_lock = Lock()
+_robopoker_spot_list_cache: dict[str, tuple[float, StudySpotListResponse]] = {}
+_study_matrix_cache: dict[str, tuple[float, StudySpotMatrixResponse]] = {}
+_study_cache_stats: dict[str, int] = {
+    "spot_list_hits": 0,
+    "spot_list_misses": 0,
+    "matrix_hits": 0,
+    "matrix_misses": 0,
+}
+
+
+def _study_cache_ttl_sec() -> float:
+    raw = os.getenv("STUDY_CACHE_TTL_SEC", "45").strip()
+    try:
+        ttl = int(raw)
+    except ValueError:
+        ttl = 45
+    return float(max(5, ttl))
+
+
+def _study_cache_key(*parts: str | int | None) -> str:
+    normalized = ["" if part is None else str(part).strip() for part in parts]
+    return "|".join(normalized)
+
+
+def _clone_spot_list_response(value: StudySpotListResponse) -> StudySpotListResponse:
+    return StudySpotListResponse.model_validate(value.model_dump())
+
+
+def _clone_matrix_response(value: StudySpotMatrixResponse) -> StudySpotMatrixResponse:
+    return StudySpotMatrixResponse.model_validate(value.model_dump())
+
+
+def _study_cache_get_spot_list(key: str) -> StudySpotListResponse | None:
+    now = time.time()
+    ttl = _study_cache_ttl_sec()
+    with _study_cache_lock:
+        cached = _robopoker_spot_list_cache.get(key)
+        if not cached:
+            _study_cache_stats["spot_list_misses"] += 1
+            return None
+        expires_at, response = cached
+        if expires_at < now:
+            _robopoker_spot_list_cache.pop(key, None)
+            _study_cache_stats["spot_list_misses"] += 1
+            return None
+        _study_cache_stats["spot_list_hits"] += 1
+        return _clone_spot_list_response(response)
+
+
+def _study_cache_set_spot_list(key: str, response: StudySpotListResponse) -> None:
+    ttl = _study_cache_ttl_sec()
+    with _study_cache_lock:
+        _robopoker_spot_list_cache[key] = (time.time() + ttl, _clone_spot_list_response(response))
+
+
+def _study_cache_get_matrix(spot_id: str) -> StudySpotMatrixResponse | None:
+    now = time.time()
+    ttl = _study_cache_ttl_sec()
+    with _study_cache_lock:
+        cached = _study_matrix_cache.get(spot_id)
+        if not cached:
+            _study_cache_stats["matrix_misses"] += 1
+            return None
+        expires_at, response = cached
+        if expires_at < now:
+            _study_matrix_cache.pop(spot_id, None)
+            _study_cache_stats["matrix_misses"] += 1
+            return None
+        _study_cache_stats["matrix_hits"] += 1
+        return _clone_matrix_response(response)
+
+
+def _study_cache_set_matrix(spot_id: str, response: StudySpotMatrixResponse) -> None:
+    ttl = _study_cache_ttl_sec()
+    with _study_cache_lock:
+        _study_matrix_cache[spot_id] = (time.time() + ttl, _clone_matrix_response(response))
+
+
+def study_cache_health() -> dict[str, float | int]:
+    with _study_cache_lock:
+        hits = _study_cache_stats["spot_list_hits"] + _study_cache_stats["matrix_hits"]
+        misses = _study_cache_stats["spot_list_misses"] + _study_cache_stats["matrix_misses"]
+        total = hits + misses
+        hit_rate = round((hits / total) * 100.0, 2) if total else 0.0
+        return {
+            "ttlSec": int(_study_cache_ttl_sec()),
+            "spotListEntries": len(_robopoker_spot_list_cache),
+            "matrixEntries": len(_study_matrix_cache),
+            "spotListHits": _study_cache_stats["spot_list_hits"],
+            "spotListMisses": _study_cache_stats["spot_list_misses"],
+            "matrixHits": _study_cache_stats["matrix_hits"],
+            "matrixMisses": _study_cache_stats["matrix_misses"],
+            "overallHitRatePct": hit_rate,
+        }
 
 
 def now_iso() -> str:
@@ -1013,6 +1111,10 @@ def _list_study_spots_from_robopoker(
     rid = request_id()
     safe_limit = max(1, min(limit, 200))
     safe_offset = max(0, offset)
+    cache_key = _study_cache_key(dataset_format, dataset_position, dataset_stack_bb, street_filter, safe_limit, safe_offset)
+    cached_response = _study_cache_get_spot_list(cache_key)
+    if cached_response is not None:
+        return cached_response.model_copy(update={"requestId": rid})
 
     where_clauses = ["((present >> 8) & 255) BETWEEN 1 AND 3"]
     params: list[Any] = []
@@ -1174,7 +1276,9 @@ def _list_study_spots_from_robopoker(
                     )
                     spots.append(spot)
 
-                return StudySpotListResponse(requestId=rid, total=total, spots=spots)
+                response = StudySpotListResponse(requestId=rid, total=total, spots=spots)
+                _study_cache_set_spot_list(cache_key, response)
+                return response
     except Exception:
         return None
 
@@ -1191,6 +1295,10 @@ def list_study_spots(
     rid = request_id()
     safe_limit = max(1, min(limit, 200))
     safe_offset = max(0, offset)
+    cache_key = _study_cache_key(dataset_format, dataset_position, dataset_stack_bb, street_filter, safe_limit, safe_offset)
+    cached_response = _study_cache_get_spot_list(cache_key)
+    if cached_response is not None:
+        return cached_response.model_copy(update={"requestId": rid})
 
     robopoker_spots = _list_study_spots_from_robopoker(
         format_filter=format_filter,
@@ -1323,6 +1431,10 @@ def _find_robopoker_spot(spot_id: str) -> StudySpot | None:
 
 
 def get_study_spot_matrix(supabase: Client | None, spot_id: str) -> StudySpotMatrixResponse | None:
+    cached = _study_cache_get_matrix(spot_id)
+    if cached is not None:
+        return cached.model_copy(update={"requestId": request_id()})
+
     spot: StudySpot | None = None
     source = "seed"
 
@@ -1342,7 +1454,7 @@ def get_study_spot_matrix(supabase: Client | None, spot_id: str) -> StudySpotMat
         return None
 
     actions, hands = _build_hand_strategy_for_spot(spot)
-    return StudySpotMatrixResponse(
+    response = StudySpotMatrixResponse(
         requestId=request_id(),
         spotId=spot.id,
         nodeCode=spot.node.nodeCode,
@@ -1350,6 +1462,8 @@ def get_study_spot_matrix(supabase: Client | None, spot_id: str) -> StudySpotMat
         actions=actions,
         hands=hands,
     )
+    _study_cache_set_matrix(spot_id, response)
+    return response
 
 
 def create_drill(supabase: Client, payload: DrillCreateRequest) -> DrillCreateResponse:

@@ -118,6 +118,18 @@ class StudySpotMatrixResponse(BaseModel):
     hands: list[StudyHandMatrixItem]
 
 
+class StudyCacheHealthResponse(BaseModel):
+    requestId: str
+    ttlSec: int
+    spotListEntries: int
+    matrixEntries: int
+    spotListHits: int
+    spotListMisses: int
+    matrixHits: int
+    matrixMisses: int
+    overallHitRatePct: float
+
+
 ZenChatRole = Literal["user", "assistant"]
 
 

@@ -27,6 +27,7 @@ class Settings:
     zen_qwen_workspace_id: str
     zen_qwen_use_workspace: bool
     zen_provider: str
+    study_cache_ttl_sec: int
 
 
 def _first_non_empty(*values: str) -> str:
@@ -138,4 +139,5 @@ def load_settings() -> Settings:
                 "heuristic",
             ),
         ),
+        study_cache_ttl_sec=max(5, int(os.getenv("STUDY_CACHE_TTL_SEC", "45"))),
     )
