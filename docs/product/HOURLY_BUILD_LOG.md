@@ -26,7 +26,8 @@
 - Start internal admin only; expand cohort if attach-rate lift and error budget pass in 7 days.
 
 ### Push result
-- Pending (to be filled after push in this run).
+- `git push -u origin pg/hourly-20260228-1940-admin-campaign-launch` ✅
+- PR URL: https://github.com/AllenPeng0209/poker_god/pull/new/pg/hourly-20260228-1940-admin-campaign-launch
 
 ### Blockers
 - None.
