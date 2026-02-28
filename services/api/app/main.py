@@ -5,6 +5,7 @@ from collections import defaultdict, deque
 from datetime import UTC, datetime
 from threading import Lock
 from time import perf_counter
+from typing import Any
 
 from fastapi import BackgroundTasks, FastAPI, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,6 +15,7 @@ from .config import load_settings
 from .database import get_supabase_client
 from .schemas import (
     AnalyticsIngestRequest,
+    AdminLatencyResponse,
     AnalyticsIngestResponse,
     AnalyzeHandsResponse,
     AnalyzeUploadCreateRequest,
@@ -68,6 +70,10 @@ logger = logging.getLogger("poker-god-api")
 
 _rate_limit_lock = Lock()
 _rate_limit_store: defaultdict[str, deque[float]] = defaultdict(deque)
+
+_latency_lock = Lock()
+_latency_samples: defaultdict[str, deque[float]] = defaultdict(deque)
+_latency_max_samples = 500
 
 
 def _parse_cors_origins(raw: str) -> list[str]:
@@ -126,6 +132,52 @@ def _rate_limit_key(request: Request) -> str:
     return f"{_client_ip(request)}:{request.method}:{request.url.path}"
 
 
+def _record_latency_sample(path: str, duration_ms: float) -> None:
+    with _latency_lock:
+        bucket = _latency_samples[path]
+        bucket.append(max(0.0, duration_ms))
+        while len(bucket) > _latency_max_samples:
+            bucket.popleft()
+
+
+def _percentile(sorted_samples: list[float], ratio: float) -> float:
+    if not sorted_samples:
+        return 0.0
+    if len(sorted_samples) == 1:
+        return sorted_samples[0]
+    target = ratio * (len(sorted_samples) - 1)
+    lower = int(target)
+    upper = min(lower + 1, len(sorted_samples) - 1)
+    if lower == upper:
+        return sorted_samples[lower]
+    weight = target - lower
+    return sorted_samples[lower] * (1 - weight) + sorted_samples[upper] * weight
+
+
+def _build_latency_snapshot() -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    with _latency_lock:
+        for path, sample_deque in _latency_samples.items():
+            samples = list(sample_deque)
+            if not samples:
+                continue
+            sorted_samples = sorted(samples)
+            avg = sum(sorted_samples) / len(sorted_samples)
+            rows.append(
+                {
+                    "path": path,
+                    "count": len(sorted_samples),
+                    "avgMs": round(avg, 2),
+                    "p50Ms": round(_percentile(sorted_samples, 0.50), 2),
+                    "p95Ms": round(_percentile(sorted_samples, 0.95), 2),
+                    "maxMs": round(sorted_samples[-1], 2),
+                },
+            )
+
+    rows.sort(key=lambda item: item["p95Ms"], reverse=True)
+    return rows
+
+
 @app.middleware("http")
 async def security_middleware(request: Request, call_next):  # type: ignore[no-untyped-def]
     rid = request.headers.get("x-request-id", "").strip() or request_id()
@@ -174,7 +226,11 @@ async def security_middleware(request: Request, call_next):  # type: ignore[no-u
 
     response = await call_next(request)
     elapsed_ms = round((perf_counter() - started) * 1000, 2)
+    if request.url.path.startswith("/api/"):
+        _record_latency_sample(request.url.path, elapsed_ms)
     response.headers["X-Request-Id"] = rid
+    response.headers["X-Response-Time-Ms"] = str(elapsed_ms)
+    response.headers["Server-Timing"] = f"app;dur={elapsed_ms}"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
@@ -247,6 +303,16 @@ def ready(request: Request) -> JSONResponse:
             "requestId": rid,
             "timestamp": datetime.now(UTC).isoformat(),
         },
+    )
+
+
+@app.get("/api/admin/ops/latency", response_model=AdminLatencyResponse)
+def admin_ops_latency(limit: int = Query(default=20, ge=1, le=100)) -> AdminLatencyResponse:
+    snapshot = _build_latency_snapshot()[:limit]
+    return AdminLatencyResponse(
+        requestId=request_id(),
+        generatedAt=datetime.now(UTC).isoformat(),
+        routes=snapshot,
     )
 
 

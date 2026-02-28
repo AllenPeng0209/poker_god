@@ -18,6 +18,21 @@ class HealthResponse(BaseModel):
     timestamp: str
 
 
+class AdminLatencyRoute(BaseModel):
+    path: str
+    count: int
+    avgMs: float
+    p50Ms: float
+    p95Ms: float
+    maxMs: float
+
+
+class AdminLatencyResponse(BaseModel):
+    requestId: str
+    generatedAt: str
+    routes: list[AdminLatencyRoute]
+
+
 class TrainingZone(BaseModel):
     id: str
     key: str
