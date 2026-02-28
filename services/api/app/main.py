@@ -30,6 +30,7 @@ from .schemas import (
     HealthResponse,
     LeakReportResponse,
     PracticeCompleteSessionResponse,
+    PracticeSessionDiagnosisResponse,
     PracticeSessionStartRequest,
     PracticeSessionStartResponse,
     PracticeSubmitAnswerRequest,
@@ -43,6 +44,7 @@ from .schemas import (
 )
 from .services import (
     build_leak_report,
+    build_practice_session_diagnosis,
     coach_chat,
     coach_create_drill_action,
     coach_create_plan_action,
@@ -355,6 +357,15 @@ def practice_submit_answer(session_id: str, payload: PracticeSubmitAnswerRequest
 def practice_complete_session(session_id: str) -> PracticeCompleteSessionResponse | JSONResponse:
     supabase = get_supabase_client()
     result = complete_practice_session(supabase, session_id)
+    if not result:
+        return _error(404, "session_not_found", f"session {session_id} not found")
+    return result
+
+
+@app.get("/api/practice/sessions/{session_id}/diagnosis", response_model=PracticeSessionDiagnosisResponse)
+def practice_session_diagnosis(session_id: str) -> PracticeSessionDiagnosisResponse | JSONResponse:
+    supabase = get_supabase_client()
+    result = build_practice_session_diagnosis(supabase, session_id)
     if not result:
         return _error(404, "session_not_found", f"session {session_id} not found")
     return result

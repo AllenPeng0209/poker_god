@@ -35,8 +35,11 @@ from .schemas import (
     LeakReportResponse,
     PracticeAnswerFeedback,
     PracticeCompleteSessionResponse,
+    PracticeDiagnosisTopMistake,
     PracticeQuestion,
     PracticeSession,
+    PracticeSessionDiagnosis,
+    PracticeSessionDiagnosisResponse,
     PracticeSessionStartRequest,
     PracticeSessionStartResponse,
     PracticeSessionSummary,
@@ -1626,6 +1629,114 @@ def complete_practice_session(supabase: Client, session_id: str) -> PracticeComp
         scorePct=score_pct,
     )
     return PracticeCompleteSessionResponse(requestId=rid, session=_session_from_row(updated_row), summary=summary)
+
+
+def _mistake_diagnosis(chosen_action: str, recommended_action: str) -> str:
+    if chosen_action.lower() == "fold":
+        return f"过度弃牌，建议在该节点提升 {recommended_action} 执行频率。"
+    if "raise" in chosen_action.lower() and "check" in recommended_action.lower():
+        return "过度激进导致不必要波动，建议回归 check/call 主线。"
+    if "check" in chosen_action.lower() and "bet" in recommended_action.lower():
+        return "价值/诈唬下注频率不足，建议补足进攻线。"
+    return f"动作偏离 baseline（应为 {recommended_action}），建议用 line drill 强化。"
+
+
+def build_practice_session_diagnosis(supabase: Client, session_id: str) -> PracticeSessionDiagnosisResponse | None:
+    rid = request_id()
+    session_rows = (
+        supabase.table("pg_mvp_practice_sessions")
+        .select("id,drill_id")
+        .eq("id", session_id)
+        .limit(1)
+        .execute()
+        .data
+        or []
+    )
+    if not session_rows:
+        return None
+    session = session_rows[0]
+
+    answer_rows = (
+        supabase.table("pg_mvp_practice_answers")
+        .select("chosen_action,recommended_action,correct,ev_loss_bb100,frequency_gap_pct")
+        .eq("session_id", session_id)
+        .execute()
+        .data
+        or []
+    )
+
+    sample_size = len(answer_rows)
+    if sample_size == 0:
+        diagnosis = PracticeSessionDiagnosis(
+            sessionId=session_id,
+            drillId=str(session.get("drill_id")),
+            sampleSize=0,
+            incorrectCount=0,
+            accuracyPct=0.0,
+            totalEvLossBb100=0.0,
+            avgEvLossBb100=0.0,
+            topMistakes=[],
+            recommendedHomeworkFocus=["先完成至少 5 道题再生成诊断。"],
+        )
+        return PracticeSessionDiagnosisResponse(requestId=rid, diagnosis=diagnosis)
+
+    incorrect_rows = [row for row in answer_rows if not bool(row.get("correct"))]
+    grouped: dict[str, dict[str, Any]] = {}
+    for row in incorrect_rows:
+        chosen_action = str(row.get("chosen_action") or "")
+        recommended_action = str(row.get("recommended_action") or "")
+        key = f"{chosen_action}->{recommended_action}".lower()
+        if key not in grouped:
+            grouped[key] = {
+                "key": key,
+                "chosenAction": chosen_action,
+                "recommendedAction": recommended_action,
+                "count": 0,
+                "evLoss": 0.0,
+                "freqGap": 0.0,
+            }
+        grouped[key]["count"] += 1
+        grouped[key]["evLoss"] += _safe_float(row.get("ev_loss_bb100"))
+        grouped[key]["freqGap"] += _safe_float(row.get("frequency_gap_pct"))
+
+    top_mistakes_rows = sorted(
+        grouped.values(),
+        key=lambda item: (item["evLoss"], item["count"]),
+        reverse=True,
+    )[:3]
+
+    top_mistakes = [
+        PracticeDiagnosisTopMistake(
+            key=str(item["key"]),
+            chosenAction=str(item["chosenAction"]),
+            recommendedAction=str(item["recommendedAction"]),
+            count=_safe_int(item["count"]),
+            avgEvLossBb100=round(_safe_float(item["evLoss"]) / max(1, _safe_int(item["count"])), 1),
+            avgFrequencyGapPct=round(_safe_float(item["freqGap"]) / max(1, _safe_int(item["count"])), 1),
+            diagnosis=_mistake_diagnosis(str(item["chosenAction"]), str(item["recommendedAction"])),
+        )
+        for item in top_mistakes_rows
+    ]
+
+    total_ev_loss = round(sum(_safe_float(row.get("ev_loss_bb100")) for row in answer_rows), 1)
+    incorrect_count = len(incorrect_rows)
+    recommended_homework_focus = [
+        f"Line drill: {mistake.chosenAction} -> {mistake.recommendedAction}"
+        for mistake in top_mistakes
+    ] or ["保持当前准确率，扩大样本后复查。"]
+
+    diagnosis = PracticeSessionDiagnosis(
+        sessionId=session_id,
+        drillId=str(session.get("drill_id")),
+        sampleSize=sample_size,
+        incorrectCount=incorrect_count,
+        accuracyPct=round(((sample_size - incorrect_count) / sample_size) * 100, 1),
+        totalEvLossBb100=total_ev_loss,
+        avgEvLossBb100=round(total_ev_loss / sample_size, 1),
+        topMistakes=top_mistakes,
+        recommendedHomeworkFocus=recommended_homework_focus,
+    )
+    return PracticeSessionDiagnosisResponse(requestId=rid, diagnosis=diagnosis)
 
 
 def _parse_hands_from_text(upload_id: str, raw: str) -> list[dict[str, Any]]:

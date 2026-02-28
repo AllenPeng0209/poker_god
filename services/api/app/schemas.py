@@ -256,6 +256,33 @@ class PracticeCompleteSessionResponse(BaseModel):
     summary: PracticeSessionSummary
 
 
+class PracticeDiagnosisTopMistake(BaseModel):
+    key: str
+    chosenAction: str
+    recommendedAction: str
+    count: int
+    avgEvLossBb100: float
+    avgFrequencyGapPct: float
+    diagnosis: str
+
+
+class PracticeSessionDiagnosis(BaseModel):
+    sessionId: str
+    drillId: str
+    sampleSize: int
+    incorrectCount: int
+    accuracyPct: float
+    totalEvLossBb100: float
+    avgEvLossBb100: float
+    topMistakes: list[PracticeDiagnosisTopMistake]
+    recommendedHomeworkFocus: list[str]
+
+
+class PracticeSessionDiagnosisResponse(BaseModel):
+    requestId: str
+    diagnosis: PracticeSessionDiagnosis
+
+
 AnalyzeUploadStatus = Literal["uploaded", "parsing", "parsed", "failed"]
 
 
