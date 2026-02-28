@@ -31,10 +31,11 @@
 - Rollout: staging internal -> admin operators -> full default.
 
 ### Push result
-- Pending in this run (attempt after commit).
+- ❌ `git push -u origin pg/hourly-20260228-0937-coach-admin-funnel` failed: `could not read Username for 'https://github.com': No such device or address`.
+- Local commit available: `4aeb2b0`.
 
 ### Blockers
-- None at code level.
+- GitHub authentication unavailable in current runtime.
 
 ### Next action
 - Implement mobile homework inbox and streak-triggered retention notifications consuming coach memory/homework APIs.
