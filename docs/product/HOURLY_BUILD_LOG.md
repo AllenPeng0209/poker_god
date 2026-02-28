@@ -29,7 +29,8 @@
   - `admin_mistake_overview_v1`
 
 ### Push result
-- Pending in this run log until push command executes.
+- Success: pushed `pg/hourly-20260228-1228-coach-summary-cache`
+- PR URL: https://github.com/AllenPeng0209/poker_god/pull/new/pg/hourly-20260228-1228-coach-summary-cache
 
 ### Blockers
 - No hard blocker.
