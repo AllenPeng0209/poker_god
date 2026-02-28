@@ -271,6 +271,70 @@ export interface AnalyzeHandsResponse {
   hands: AnalyzedHand[];
 }
 
+export interface AnalyzeMistakeCluster {
+  tag: string;
+  handsCount: number;
+  averageEvLossBb100: number;
+  totalEvLossBb100: number;
+  severity: 'critical' | 'high' | 'medium';
+  recommendation: string;
+}
+
+export interface AnalyzeMistakeSummaryResponse {
+  requestId: string;
+  generatedAt: string;
+  windowHands: number;
+  biggestLeakTag: string | null;
+  averageEvLossBb100: number;
+  topClusters: AnalyzeMistakeCluster[];
+  suggestedHomework: {
+    title: string;
+    focusTag: string;
+    itemCount: number;
+    targetEvRecoveryBb100: number;
+  }[];
+}
+
+export interface AnalyzeMistakeOverviewResponse {
+  requestId: string;
+  generatedAt: string;
+  currentWindowHands: number;
+  previousWindowHands: number;
+  averageEvLossBb100: number;
+  evLossTrendPct: number;
+  topLeakTag: string | null;
+  criticalClusterCount: number;
+  recommendedAction: 'monitor' | 'launch_homework_campaign';
+}
+
+export interface AdminHomeworkCampaignCreateRequest {
+  uploadId?: string;
+  title?: string;
+  topN?: number;
+}
+
+export interface AdminHomeworkCampaign {
+  id: string;
+  title: string;
+  status: 'draft';
+  createdAt: string;
+  sourceUploadId?: string;
+  totalHomeworkItems: number;
+  topLeakTag: string | null;
+  averageEvLossBb100: number;
+  suggestedHomework: {
+    title: string;
+    focusTag: string;
+    itemCount: number;
+    targetEvRecoveryBb100: number;
+  }[];
+}
+
+export interface AdminHomeworkCampaignCreateResponse {
+  requestId: string;
+  campaign: AdminHomeworkCampaign;
+}
+
 export type LeakConfidence = 'high' | 'medium' | 'low';
 
 export interface LeakReportItem {

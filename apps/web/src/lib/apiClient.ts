@@ -1,7 +1,11 @@
 import type {
+  AdminHomeworkCampaignCreateRequest,
+  AdminHomeworkCampaignCreateResponse,
   AnalyticsEvent,
   AnalyticsIngestResponse,
   AnalyzeHandsResponse,
+  AnalyzeMistakeOverviewResponse,
+  AnalyzeMistakeSummaryResponse,
   AnalyzeUploadCreateRequest,
   AnalyzeUploadResponse,
   CoachChatRequest,
@@ -150,6 +154,30 @@ export const apiClient = {
     if (filters.tag) query.set('tag', filters.tag);
 
     return requestJson<AnalyzeHandsResponse>(`/api/analyze/hands?${query.toString()}`);
+  },
+
+  async getAnalyzeMistakeSummary(filters?: { uploadId?: string; topN?: number }): Promise<AnalyzeMistakeSummaryResponse> {
+    const query = new URLSearchParams();
+    if (filters?.uploadId) query.set('uploadId', filters.uploadId);
+    if (typeof filters?.topN === 'number') query.set('topN', String(filters.topN));
+    const suffix = query.toString();
+    return requestJson<AnalyzeMistakeSummaryResponse>(`/api/analyze/mistakes/summary${suffix ? `?${suffix}` : ''}`);
+  },
+
+  async getAdminAnalyzeMistakeOverview(filters?: { uploadId?: string }): Promise<AnalyzeMistakeOverviewResponse> {
+    const query = new URLSearchParams();
+    if (filters?.uploadId) query.set('uploadId', filters.uploadId);
+    const suffix = query.toString();
+    return requestJson<AnalyzeMistakeOverviewResponse>(`/api/admin/analyze/mistakes/overview${suffix ? `?${suffix}` : ''}`);
+  },
+
+  async createAdminHomeworkCampaign(
+    input: AdminHomeworkCampaignCreateRequest,
+  ): Promise<AdminHomeworkCampaignCreateResponse> {
+    return requestJson<AdminHomeworkCampaignCreateResponse>('/api/admin/analyze/mistakes/campaigns', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
   },
 
   async getLeakReport(windowDays: 7 | 30 | 90): Promise<LeakReportResponse> {

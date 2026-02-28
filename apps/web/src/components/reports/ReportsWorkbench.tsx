@@ -7,6 +7,7 @@ import { apiClient } from '@/lib/apiClient';
 import { trackEvent } from '@/lib/analytics';
 
 const WINDOW_OPTIONS: Array<7 | 30 | 90> = [7, 30, 90];
+const ADMIN_HOMEWORK_CAMPAIGN_ENABLED = process.env.NEXT_PUBLIC_ADMIN_HOMEWORK_CAMPAIGN_V1 === 'true';
 
 export function ReportsWorkbench() {
   const { t } = useI18n();
@@ -14,6 +15,21 @@ export function ReportsWorkbench() {
   const [isLoading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [generatedAt, setGeneratedAt] = useState<string>('');
+  const [adminOverview, setAdminOverview] = useState<{
+    generatedAt: string;
+    averageEvLossBb100: number;
+    evLossTrendPct: number;
+    topLeakTag: string | null;
+    criticalClusterCount: number;
+    recommendedAction: 'monitor' | 'launch_homework_campaign';
+  } | null>(null);
+  const [campaignDraft, setCampaignDraft] = useState<{
+    id: string;
+    title: string;
+    totalHomeworkItems: number;
+    topLeakTag: string | null;
+  } | null>(null);
+  const [campaignSubmitting, setCampaignSubmitting] = useState(false);
   const [items, setItems] = useState<
     Array<{
       id: string;
@@ -33,16 +49,30 @@ export function ReportsWorkbench() {
       setLoading(true);
       setError(null);
       try {
-        const response = await apiClient.getLeakReport(windowDays);
+        const [response, overview] = await Promise.all([
+          apiClient.getLeakReport(windowDays),
+          ADMIN_HOMEWORK_CAMPAIGN_ENABLED ? apiClient.getAdminAnalyzeMistakeOverview() : Promise.resolve(null),
+        ]);
         if (cancelled) return;
         setItems(response.items);
         setGeneratedAt(response.generatedAt);
+        if (overview) {
+          setAdminOverview({
+            generatedAt: overview.generatedAt,
+            averageEvLossBb100: overview.averageEvLossBb100,
+            evLossTrendPct: overview.evLossTrendPct,
+            topLeakTag: overview.topLeakTag,
+            criticalClusterCount: overview.criticalClusterCount,
+            recommendedAction: overview.recommendedAction,
+          });
+        }
         trackEvent('report_opened', {
           module: 'reports',
           requestId: response.requestId,
           payload: {
             windowDays,
             itemCount: response.items.length,
+            adminOverviewRecommendedAction: overview?.recommendedAction,
           },
         });
       } catch (loadError) {
@@ -61,6 +91,36 @@ export function ReportsWorkbench() {
       cancelled = true;
     };
   }, [windowDays, t]);
+
+  const launchHomeworkCampaign = async () => {
+    if (!ADMIN_HOMEWORK_CAMPAIGN_ENABLED || campaignSubmitting) {
+      return;
+    }
+
+    setCampaignSubmitting(true);
+    setError(null);
+    try {
+      const response = await apiClient.createAdminHomeworkCampaign({ topN: 3 });
+      setCampaignDraft({
+        id: response.campaign.id,
+        title: response.campaign.title,
+        totalHomeworkItems: response.campaign.totalHomeworkItems,
+        topLeakTag: response.campaign.topLeakTag,
+      });
+      trackEvent('coach_action_executed', {
+        module: 'reports',
+        payload: {
+          action: 'launch_homework_campaign',
+          campaignId: response.campaign.id,
+          homeworkItems: response.campaign.totalHomeworkItems,
+        },
+      });
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : t('reports.errors.loadFailed'));
+    } finally {
+      setCampaignSubmitting(false);
+    }
+  };
 
   return (
     <section className="mvp-panel" aria-labelledby="reports-title">
@@ -90,6 +150,42 @@ export function ReportsWorkbench() {
           <span className="mvp-muted">{t('reports.generatedAt', { value: generatedAt || '-' })}</span>
         </div>
       </article>
+
+      {ADMIN_HOMEWORK_CAMPAIGN_ENABLED ? (
+        <article className="mvp-card">
+          <h2>Admin: Leak Campaign Launcher</h2>
+          {adminOverview ? (
+            <>
+              <p className="mvp-muted">
+                Avg EV Loss: {adminOverview.averageEvLossBb100.toFixed(1)} bb/100 · Trend: {adminOverview.evLossTrendPct.toFixed(1)}%
+                · Critical Clusters: {adminOverview.criticalClusterCount}
+              </p>
+              <p>
+                Top Leak Tag: <strong>{adminOverview.topLeakTag ?? 'n/a'}</strong> · Recommendation:{' '}
+                <strong>{adminOverview.recommendedAction}</strong>
+              </p>
+              <button
+                type="button"
+                className="module-next-link"
+                disabled={campaignSubmitting || adminOverview.recommendedAction !== 'launch_homework_campaign'}
+                onClick={() => {
+                  void launchHomeworkCampaign();
+                }}
+              >
+                {campaignSubmitting ? 'Launching...' : 'Launch Homework Campaign'}
+              </button>
+              {campaignDraft ? (
+                <p className="mvp-muted">
+                  Draft created: {campaignDraft.title} ({campaignDraft.id.slice(0, 8)}) · {campaignDraft.totalHomeworkItems} items · leak{' '}
+                  {campaignDraft.topLeakTag ?? 'n/a'}
+                </p>
+              ) : null}
+            </>
+          ) : (
+            <p className="mvp-muted">Loading admin overview...</p>
+          )}
+        </article>
+      ) : null}
 
       <article className="mvp-card">
         <h2>{t('reports.items.title')}</h2>

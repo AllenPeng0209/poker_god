@@ -1,9 +1,13 @@
 import Fastify, { type FastifyReply } from 'fastify';
 import cors from '@fastify/cors';
 import type {
+  AdminHomeworkCampaignCreateRequest,
+  AdminHomeworkCampaignCreateResponse,
   AnalyticsIngestRequest,
   AnalyticsIngestResponse,
   AnalyzeHandsResponse,
+  AnalyzeMistakeOverviewResponse,
+  AnalyzeMistakeSummaryResponse,
   AnalyzeUploadCreateRequest,
   AnalyzeUploadResponse,
   CoachChatRequest,
@@ -27,11 +31,14 @@ import type {
 } from '@poker-god/contracts';
 import { trainingZones } from '@poker-god/domain-poker/data/zones';
 import {
+  buildAnalyzeMistakeOverview,
+  buildAnalyzeMistakeSummary,
   buildLeakReport,
   coachChat,
   coachCreateDrillAction,
   coachCreatePlanAction,
   completePracticeSession,
+  createAdminHomeworkCampaign,
   createAnalyzeUpload,
   createDrill,
   getAnalyzeUpload,
@@ -251,6 +258,50 @@ app.get<{
       sortBy: request.query.sortBy,
       position: request.query.position,
       tag: request.query.tag,
+    });
+  },
+);
+
+app.get<{ Querystring: { uploadId?: string; topN?: string } }>(
+  '/api/analyze/mistakes/summary',
+  async (
+    request,
+  ): Promise<AnalyzeMistakeSummaryResponse> => {
+    const topN = request.query.topN ? Number(request.query.topN) : undefined;
+    return buildAnalyzeMistakeSummary(requestId(), {
+      uploadId: request.query.uploadId,
+      topN,
+    });
+  },
+);
+
+app.get<{ Querystring: { uploadId?: string } }>(
+  '/api/admin/analyze/mistakes/overview',
+  async (
+    request,
+  ): Promise<AnalyzeMistakeOverviewResponse> => {
+    return buildAnalyzeMistakeOverview(requestId(), {
+      uploadId: request.query.uploadId,
+    });
+  },
+);
+
+app.post<{ Body: AdminHomeworkCampaignCreateRequest }>(
+  '/api/admin/analyze/mistakes/campaigns',
+  async (
+    request,
+    reply,
+  ): Promise<AdminHomeworkCampaignCreateResponse | ErrorBody> => {
+    const id = requestId();
+    const body = request.body ?? {};
+    if (body.topN !== undefined && (typeof body.topN !== 'number' || body.topN < 1 || body.topN > 8)) {
+      return badRequest(reply, id, 'invalid_top_n', 'topN must be between 1 and 8');
+    }
+
+    return createAdminHomeworkCampaign(id, {
+      uploadId: body.uploadId,
+      title: body.title,
+      topN: body.topN,
     });
   },
 );
