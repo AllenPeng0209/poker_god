@@ -28,7 +28,9 @@ Complete PRD backlog item **T-004** by adding a production-grade mainline usabil
 - Rollback: revert this branch to remove readiness endpoint/card.
 
 ### Push Result
-- Pending in this run section until push step executes.
+- Success: `git push -u origin pg/hourly-20260301-0321-mainline-readiness`
+- PR URL: https://github.com/AllenPeng0209/poker_god/pull/new/pg/hourly-20260301-0321-mainline-readiness
+- Commit: `aa7c667`
 
 ### Blockers
 - None.
