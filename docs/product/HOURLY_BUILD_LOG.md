@@ -26,7 +26,8 @@
 - Feature flag plan: `analyze_mistake_summary_v1` phased 10% -> 50% -> 100% rollout.
 
 ### Push result
-- Pending in this run until commit step completes.
+- Success: pushed `pg/hourly-20260228-1144-analyze-mistake-diagnosis`
+- PR URL: https://github.com/AllenPeng0209/poker_god/pull/new/pg/hourly-20260228-1144-analyze-mistake-diagnosis
 
 ### Blockers
 - No code blocker.
