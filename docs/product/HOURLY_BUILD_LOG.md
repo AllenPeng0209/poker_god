@@ -27,7 +27,8 @@
 - Feature flag: `NEXT_PUBLIC_ADMIN_HOMEWORK_CAMPAIGN_V1`.
 
 ### Push result
-- Pending (to be filled after git push step).
+- Success: pushed `pg/hourly-20260228-1316-admin-campaign-launch`
+- PR URL: https://github.com/AllenPeng0209/poker_god/pull/new/pg/hourly-20260228-1316-admin-campaign-launch
 
 ### Blockers
 - None currently.
