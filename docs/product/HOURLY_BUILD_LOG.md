@@ -24,7 +24,8 @@
   - API computes assigned/started/completed session counts from Supabase `pg_mvp_events` and emits stale session risk based on `staleThresholdHours`.
   - No schema migration required (read-only aggregation path). If event volume grows, next migration should materialize daily retention snapshot table in Supabase.
 - Push result:
-  - pending in this run at log-write time
+  - ✅ pushed `pg/hourly-20260301-0627-homework-retention-radar`
+  - PR URL: https://github.com/AllenPeng0209/poker_god/pull/new/pg/hourly-20260301-0627-homework-retention-radar
 - Blockers:
   - none
 - Next action:
