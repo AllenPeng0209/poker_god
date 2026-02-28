@@ -26,7 +26,8 @@
 - Mobile UI flag candidate: `EXPO_PUBLIC_PRACTICE_DIAGNOSIS_V1`.
 
 ### Push result
-- Pending in this run (see git output section after push attempt).
+- `git push -u origin pg/hourly-20260228-1743-ev-drill-diagnosis` ✅
+- PR URL: https://github.com/AllenPeng0209/poker_god/pull/new/pg/hourly-20260228-1743-ev-drill-diagnosis
 
 ### Blockers
 - None at implementation stage.
