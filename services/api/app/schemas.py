@@ -382,6 +382,47 @@ class CoachCreatePlanResponse(BaseModel):
     plan: WeeklyPlan
 
 
+HomeworkStatus = Literal["assigned", "in_progress", "completed", "archived"]
+
+
+class CoachHomework(BaseModel):
+    id: str
+    userId: str
+    title: str
+    sourceClusterId: str | None = None
+    sourceSessionId: str | None = None
+    status: HomeworkStatus
+    dueAt: str | None = None
+    notes: str | None = None
+    createdBy: str
+    createdAt: str
+    updatedAt: str
+
+
+class CoachHomeworkCreateRequest(BaseModel):
+    userId: str = Field(min_length=1, max_length=120)
+    title: str = Field(min_length=1, max_length=180)
+    sourceClusterId: str | None = Field(default=None, max_length=120)
+    sourceSessionId: str | None = Field(default=None, max_length=120)
+    dueAt: str | None = None
+    notes: str | None = Field(default=None, max_length=1000)
+    createdBy: str = Field(min_length=1, max_length=120)
+
+
+class CoachHomeworkCreateResponse(BaseModel):
+    requestId: str
+    homework: CoachHomework
+
+
+class CoachHomeworkStatusUpdateRequest(BaseModel):
+    status: HomeworkStatus
+
+
+class CoachHomeworkStatusUpdateResponse(BaseModel):
+    requestId: str
+    homework: CoachHomework
+
+
 AnalyticsEventName = Literal[
     "study_node_opened",
     "drill_started",

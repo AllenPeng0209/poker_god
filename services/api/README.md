@@ -6,7 +6,7 @@ Backend has been migrated to Python and stores MVP data in Supabase tables prefi
 
 - `npm --workspace @poker-god/api run install:deps`
 - `cp services/api/.env.example services/api/.env` and fill Supabase keys
-- Apply SQL schema: run `services/api/sql/0001_pg_mvp_schema.sql` in Supabase SQL editor
+- Apply SQL schema: run `services/api/sql/0001_pg_mvp_schema.sql` then `services/api/sql/0003_pg_mvp_homework_lifecycle.sql` in Supabase SQL editor
 
 ## Commands
 
@@ -83,6 +83,9 @@ Mobile env alias (optional, backend will auto-read):
 - `POST /api/coach/chat`
 - `POST /api/coach/actions/create-drill`
 - `POST /api/coach/actions/create-plan`
+- `POST /api/coach/homeworks`
+- `GET /api/coach/homeworks/:homeworkId`
+- `PATCH /api/coach/homeworks/:homeworkId/status`
 - `POST /api/events`
 
 ## Commercialization Notes

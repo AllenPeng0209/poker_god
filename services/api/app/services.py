@@ -25,6 +25,11 @@ from .schemas import (
     CoachCreateDrillRequest,
     CoachCreatePlanRequest,
     CoachCreatePlanResponse,
+    CoachHomework,
+    CoachHomeworkCreateRequest,
+    CoachHomeworkCreateResponse,
+    CoachHomeworkStatusUpdateRequest,
+    CoachHomeworkStatusUpdateResponse,
     CoachSection,
     Drill,
     DrillCreateRequest,
@@ -1979,6 +1984,106 @@ def coach_create_plan_action(supabase: Client, payload: CoachCreatePlanRequest) 
         createdAt=str(upserted["created_at"]),
     )
     return CoachCreatePlanResponse(requestId=rid, plan=plan)
+
+
+_ALLOWED_HOMEWORK_TRANSITIONS: dict[str, set[str]] = {
+    "assigned": {"in_progress", "archived"},
+    "in_progress": {"completed", "archived"},
+    "completed": {"archived"},
+    "archived": set(),
+}
+
+
+def _homework_from_row(row: dict[str, Any]) -> CoachHomework:
+    return CoachHomework(
+        id=str(row["id"]),
+        userId=str(row["user_id"]),
+        title=str(row["title"]),
+        sourceClusterId=row.get("source_cluster_id"),
+        sourceSessionId=row.get("source_session_id"),
+        status=str(row["status"]),  # type: ignore[arg-type]
+        dueAt=row.get("due_at"),
+        notes=row.get("notes"),
+        createdBy=str(row.get("created_by") or "system"),
+        createdAt=str(row["created_at"]),
+        updatedAt=str(row["updated_at"]),
+    )
+
+
+def create_homework(supabase: Client, payload: CoachHomeworkCreateRequest) -> CoachHomeworkCreateResponse:
+    rid = request_id()
+    now = now_iso()
+    inserted = (
+        supabase.table("pg_mvp_coach_homeworks")
+        .insert(
+            {
+                "user_id": payload.userId,
+                "title": payload.title.strip(),
+                "source_cluster_id": payload.sourceClusterId,
+                "source_session_id": payload.sourceSessionId,
+                "status": "assigned",
+                "due_at": payload.dueAt,
+                "notes": payload.notes,
+                "created_by": payload.createdBy,
+                "created_at": now,
+                "updated_at": now,
+            },
+        )
+        .execute()
+        .data[0]
+    )
+    return CoachHomeworkCreateResponse(requestId=rid, homework=_homework_from_row(inserted))
+
+
+def get_homework(supabase: Client, homework_id: str) -> CoachHomework | None:
+    rows = (
+        supabase.table("pg_mvp_coach_homeworks")
+        .select("*")
+        .eq("id", homework_id)
+        .limit(1)
+        .execute()
+        .data
+        or []
+    )
+    if not rows:
+        return None
+    return _homework_from_row(rows[0])
+
+
+def update_homework_status(
+    supabase: Client,
+    homework_id: str,
+    payload: CoachHomeworkStatusUpdateRequest,
+) -> CoachHomeworkStatusUpdateResponse | str:
+    rid = request_id()
+    rows = (
+        supabase.table("pg_mvp_coach_homeworks")
+        .select("*")
+        .eq("id", homework_id)
+        .limit(1)
+        .execute()
+        .data
+        or []
+    )
+    if not rows:
+        return "homework_not_found"
+
+    current = str(rows[0].get("status") or "assigned")
+    target = payload.status
+    if target == current:
+        return CoachHomeworkStatusUpdateResponse(requestId=rid, homework=_homework_from_row(rows[0]))
+
+    if target not in _ALLOWED_HOMEWORK_TRANSITIONS.get(current, set()):
+        return f"invalid_status_transition:{current}->{target}"
+
+    updated = (
+        supabase.table("pg_mvp_coach_homeworks")
+        .update({"status": target, "updated_at": now_iso()})
+        .eq("id", homework_id)
+        .execute()
+        .data[0]
+    )
+    return CoachHomeworkStatusUpdateResponse(requestId=rid, homework=_homework_from_row(updated))
 
 
 def ingest_events(supabase: Client, events: list[dict[str, Any]]) -> int:

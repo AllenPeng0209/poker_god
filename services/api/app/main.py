@@ -23,6 +23,11 @@ from .schemas import (
     CoachCreateDrillRequest,
     CoachCreatePlanRequest,
     CoachCreatePlanResponse,
+    CoachHomework,
+    CoachHomeworkCreateRequest,
+    CoachHomeworkCreateResponse,
+    CoachHomeworkStatusUpdateRequest,
+    CoachHomeworkStatusUpdateResponse,
     DrillCreateRequest,
     DrillCreateResponse,
     DrillListResponse,
@@ -49,8 +54,10 @@ from .services import (
     complete_practice_session,
     create_analyze_upload,
     create_drill,
+    create_homework,
     generate_zen_chat,
     get_analyze_upload,
+    get_homework,
     get_study_spot_matrix,
     ingest_events,
     list_study_spots,
@@ -60,6 +67,7 @@ from .services import (
     request_id,
     start_practice_session,
     submit_practice_answer,
+    update_homework_status,
 )
 
 settings = load_settings()
@@ -421,6 +429,37 @@ def coach_create_plan(payload: CoachCreatePlanRequest) -> CoachCreatePlanRespons
     result = coach_create_plan_action(supabase, payload)
     if isinstance(result, str):
         return _error(409, "confirmation_required", result)
+    return result
+
+
+@app.post("/api/coach/homeworks", response_model=CoachHomeworkCreateResponse)
+def coach_create_homework(payload: CoachHomeworkCreateRequest) -> CoachHomeworkCreateResponse:
+    supabase = get_supabase_client()
+    return create_homework(supabase, payload)
+
+
+@app.get("/api/coach/homeworks/{homework_id}", response_model=CoachHomework)
+def coach_get_homework(homework_id: str) -> CoachHomework | JSONResponse:
+    supabase = get_supabase_client()
+    result = get_homework(supabase, homework_id)
+    if not result:
+        return _error(404, "homework_not_found", f"homework {homework_id} not found")
+    return result
+
+
+@app.patch("/api/coach/homeworks/{homework_id}/status", response_model=CoachHomeworkStatusUpdateResponse)
+def coach_update_homework_status(
+    homework_id: str,
+    payload: CoachHomeworkStatusUpdateRequest,
+) -> CoachHomeworkStatusUpdateResponse | JSONResponse:
+    supabase = get_supabase_client()
+    result = update_homework_status(supabase, homework_id, payload)
+    if isinstance(result, str):
+        if result == "homework_not_found":
+            return _error(404, "homework_not_found", f"homework {homework_id} not found")
+        if result.startswith("invalid_status_transition"):
+            return _error(409, "invalid_status_transition", result)
+        return _error(400, "invalid_request", result)
     return result
 
 
