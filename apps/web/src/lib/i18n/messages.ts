@@ -350,6 +350,14 @@ export const MESSAGES: Record<Locale, MessageTree> = {
       errors: {
         loadFailed: '加载报告失败',
       },
+      adminLatency: {
+        title: 'Admin Latency Radar',
+        summary: '采样时间：{generatedAt} · 样本量：{sampleSize}',
+        loading: '正在加载延迟雷达...',
+        empty: '当前没有可用延迟样本。',
+        p95: 'p95 {value}ms',
+        detail: 'count {count} | avg {avg}ms | p50 {p50}ms | max {max}ms',
+      },
     },
     coach: {
       button: 'Coach',
@@ -754,6 +762,14 @@ export const MESSAGES: Record<Locale, MessageTree> = {
       },
       errors: {
         loadFailed: 'Failed to load report',
+      },
+      adminLatency: {
+        title: 'Admin Latency Radar',
+        summary: 'Generated at: {generatedAt} · Samples: {sampleSize}',
+        loading: 'Loading latency radar...',
+        empty: 'No latency samples yet.',
+        p95: 'p95 {value}ms',
+        detail: 'count {count} | avg {avg}ms | p50 {p50}ms | max {max}ms',
       },
     },
     coach: {

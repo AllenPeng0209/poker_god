@@ -291,6 +291,22 @@ export interface LeakReportResponse {
   items: LeakReportItem[];
 }
 
+export interface AdminLatencyRouteStat {
+  route: string;
+  count: number;
+  avgMs: number;
+  p50Ms: number;
+  p95Ms: number;
+  maxMs: number;
+}
+
+export interface AdminLatencyOpsResponse {
+  requestId: string;
+  generatedAt: string;
+  sampleSize: number;
+  routes: AdminLatencyRouteStat[];
+}
+
 export type CoachModule = 'study' | 'practice' | 'analyze' | 'reports';
 export type CoachMode = 'Explain' | 'Fix' | 'Drill' | 'Plan';
 

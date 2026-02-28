@@ -1,12 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useI18n } from '@/components/i18n/I18nProvider';
 import { apiClient } from '@/lib/apiClient';
 import { trackEvent } from '@/lib/analytics';
 
 const WINDOW_OPTIONS: Array<7 | 30 | 90> = [7, 30, 90];
+const ADMIN_OPS_LATENCY_V1 = process.env.NEXT_PUBLIC_ADMIN_OPS_LATENCY_V1 === '1';
 
 export function ReportsWorkbench() {
   const { t } = useI18n();
@@ -26,6 +27,22 @@ export function ReportsWorkbench() {
       relatedTag: string;
     }>
   >([]);
+  const [latencyLoading, setLatencyLoading] = useState(false);
+  const [latencyError, setLatencyError] = useState<string | null>(null);
+  const [latencyGeneratedAt, setLatencyGeneratedAt] = useState<string>('');
+  const [latencySampleSize, setLatencySampleSize] = useState<number>(0);
+  const [latencyRoutes, setLatencyRoutes] = useState<
+    Array<{
+      route: string;
+      count: number;
+      avgMs: number;
+      p50Ms: number;
+      p95Ms: number;
+      maxMs: number;
+    }>
+  >([]);
+
+  const hotRoutes = useMemo(() => latencyRoutes.slice(0, 5), [latencyRoutes]);
 
   useEffect(() => {
     let cancelled = false;
@@ -61,6 +78,37 @@ export function ReportsWorkbench() {
       cancelled = true;
     };
   }, [windowDays, t]);
+
+  useEffect(() => {
+    if (!ADMIN_OPS_LATENCY_V1) {
+      return;
+    }
+    let cancelled = false;
+    const run = async () => {
+      setLatencyLoading(true);
+      setLatencyError(null);
+      try {
+        const response = await apiClient.getAdminLatencyOps();
+        if (cancelled) return;
+        setLatencyGeneratedAt(response.generatedAt);
+        setLatencySampleSize(response.sampleSize);
+        setLatencyRoutes(response.routes);
+      } catch (loadError) {
+        if (!cancelled) {
+          setLatencyError(loadError instanceof Error ? loadError.message : t('reports.errors.loadFailed'));
+        }
+      } finally {
+        if (!cancelled) {
+          setLatencyLoading(false);
+        }
+      }
+    };
+
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [t]);
 
   return (
     <section className="mvp-panel" aria-labelledby="reports-title">
@@ -121,6 +169,43 @@ export function ReportsWorkbench() {
           </ul>
         ) : null}
       </article>
+
+      {ADMIN_OPS_LATENCY_V1 ? (
+        <article className="mvp-card" data-testid="admin-latency-radar">
+          <h2>{t('reports.adminLatency.title')}</h2>
+          <p className="mvp-muted">
+            {t('reports.adminLatency.summary', {
+              generatedAt: latencyGeneratedAt || '-',
+              sampleSize: latencySampleSize.toString(),
+            })}
+          </p>
+          {latencyLoading ? <p className="mvp-muted">{t('reports.adminLatency.loading')}</p> : null}
+          {!latencyLoading && hotRoutes.length === 0 ? (
+            <p className="mvp-muted">{t('reports.adminLatency.empty')}</p>
+          ) : null}
+          {!latencyLoading && hotRoutes.length > 0 ? (
+            <ul className="mvp-report-list">
+              {hotRoutes.map((route) => (
+                <li key={route.route}>
+                  <div className="mvp-report-list__title">
+                    <strong>{route.route}</strong>
+                    <span>{t('reports.adminLatency.p95', { value: route.p95Ms.toFixed(2) })}</span>
+                  </div>
+                  <p>
+                    {t('reports.adminLatency.detail', {
+                      count: route.count.toString(),
+                      avg: route.avgMs.toFixed(2),
+                      p50: route.p50Ms.toFixed(2),
+                      max: route.maxMs.toFixed(2),
+                    })}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {latencyError ? <p className="module-error-text">{latencyError}</p> : null}
+        </article>
+      ) : null}
 
       {error ? <p className="module-error-text">{error}</p> : null}
     </section>

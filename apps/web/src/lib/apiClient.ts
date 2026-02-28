@@ -1,4 +1,5 @@
 import type {
+  AdminLatencyOpsResponse,
   AnalyticsEvent,
   AnalyticsIngestResponse,
   AnalyzeHandsResponse,
@@ -154,6 +155,10 @@ export const apiClient = {
 
   async getLeakReport(windowDays: 7 | 30 | 90): Promise<LeakReportResponse> {
     return requestJson<LeakReportResponse>(`/api/reports/leaks?windowDays=${windowDays}`);
+  },
+
+  async getAdminLatencyOps(): Promise<AdminLatencyOpsResponse> {
+    return requestJson<AdminLatencyOpsResponse>('/api/admin/ops/latency');
   },
 
   async zenChat(input: ZenChatRequest): Promise<ZenChatResponse> {

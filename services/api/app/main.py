@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict, deque
+from bisect import insort
 from datetime import UTC, datetime
 from threading import Lock
 from time import perf_counter
@@ -13,6 +14,8 @@ from fastapi.responses import JSONResponse
 from .config import load_settings
 from .database import get_supabase_client
 from .schemas import (
+    AdminLatencyOpsResponse,
+    AdminLatencyRouteStat,
     AnalyticsIngestRequest,
     AnalyticsIngestResponse,
     AnalyzeHandsResponse,
@@ -68,6 +71,11 @@ logger = logging.getLogger("poker-god-api")
 
 _rate_limit_lock = Lock()
 _rate_limit_store: defaultdict[str, deque[float]] = defaultdict(deque)
+
+_latency_lock = Lock()
+_latency_samples_by_route: defaultdict[str, deque[float]] = defaultdict(deque)
+_latency_sorted_samples_by_route: defaultdict[str, list[float]] = defaultdict(list)
+MAX_LATENCY_SAMPLES_PER_ROUTE = 240
 
 
 def _parse_cors_origins(raw: str) -> list[str]:
@@ -126,6 +134,31 @@ def _rate_limit_key(request: Request) -> str:
     return f"{_client_ip(request)}:{request.method}:{request.url.path}"
 
 
+def _record_latency_sample(route: str, elapsed_ms: float) -> None:
+    rounded = round(elapsed_ms, 2)
+    with _latency_lock:
+        queue = _latency_samples_by_route[route]
+        sorted_samples = _latency_sorted_samples_by_route[route]
+
+        if len(queue) >= MAX_LATENCY_SAMPLES_PER_ROUTE:
+            dropped = queue.popleft()
+            dropped_index = sorted_samples.index(dropped)
+            sorted_samples.pop(dropped_index)
+
+        queue.append(rounded)
+        insort(sorted_samples, rounded)
+
+
+def _quantile(sorted_values: list[float], percentile: float) -> float:
+    if not sorted_values:
+        return 0.0
+    if len(sorted_values) == 1:
+        return sorted_values[0]
+    rank = int(round(percentile * (len(sorted_values) - 1)))
+    bounded_rank = max(0, min(rank, len(sorted_values) - 1))
+    return sorted_values[bounded_rank]
+
+
 @app.middleware("http")
 async def security_middleware(request: Request, call_next):  # type: ignore[no-untyped-def]
     rid = request.headers.get("x-request-id", "").strip() or request_id()
@@ -175,10 +208,15 @@ async def security_middleware(request: Request, call_next):  # type: ignore[no-u
     response = await call_next(request)
     elapsed_ms = round((perf_counter() - started) * 1000, 2)
     response.headers["X-Request-Id"] = rid
+    response.headers["X-Response-Time-Ms"] = f"{elapsed_ms:.2f}"
+    response.headers["Server-Timing"] = f"app;dur={elapsed_ms:.2f}"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
         response.headers["Cache-Control"] = "no-store"
+
+    if request.url.path.startswith("/api/"):
+        _record_latency_sample(request.url.path, elapsed_ms)
 
     logger.info(
         "request completed",
@@ -422,6 +460,38 @@ def coach_create_plan(payload: CoachCreatePlanRequest) -> CoachCreatePlanRespons
     if isinstance(result, str):
         return _error(409, "confirmation_required", result)
     return result
+
+
+@app.get("/api/admin/ops/latency", response_model=AdminLatencyOpsResponse)
+def admin_ops_latency() -> AdminLatencyOpsResponse:
+    route_stats: list[AdminLatencyRouteStat] = []
+
+    with _latency_lock:
+        for route, samples in _latency_samples_by_route.items():
+            if not samples:
+                continue
+            sorted_samples = _latency_sorted_samples_by_route[route]
+            count = len(samples)
+            avg = sum(samples) / count
+            route_stats.append(
+                AdminLatencyRouteStat(
+                    route=route,
+                    count=count,
+                    avgMs=round(avg, 2),
+                    p50Ms=round(_quantile(sorted_samples, 0.5), 2),
+                    p95Ms=round(_quantile(sorted_samples, 0.95), 2),
+                    maxMs=round(sorted_samples[-1], 2),
+                )
+            )
+
+    route_stats.sort(key=lambda item: item.p95Ms, reverse=True)
+
+    return AdminLatencyOpsResponse(
+        requestId=request_id(),
+        generatedAt=datetime.now(UTC).isoformat(),
+        sampleSize=sum(item.count for item in route_stats),
+        routes=route_stats,
+    )
 
 
 @app.post("/api/events", response_model=AnalyticsIngestResponse)

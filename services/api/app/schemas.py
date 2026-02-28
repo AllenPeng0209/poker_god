@@ -408,6 +408,22 @@ class AnalyticsIngestRequest(BaseModel):
     events: list[AnalyticsEvent]
 
 
+class AdminLatencyRouteStat(BaseModel):
+    route: str
+    count: int
+    avgMs: float
+    p50Ms: float
+    p95Ms: float
+    maxMs: float
+
+
+class AdminLatencyOpsResponse(BaseModel):
+    requestId: str
+    generatedAt: str
+    sampleSize: int
+    routes: list[AdminLatencyRouteStat]
+
+
 class AnalyticsIngestResponse(BaseModel):
     requestId: str
     accepted: int
