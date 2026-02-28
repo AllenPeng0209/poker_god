@@ -28,6 +28,7 @@ from .schemas import (
     DrillListResponse,
     ErrorBody,
     HealthResponse,
+    HomeworkRetentionRadarResponse,
     LeakReportResponse,
     PracticeCompleteSessionResponse,
     PracticeSessionStartRequest,
@@ -42,6 +43,7 @@ from .schemas import (
     ZenChatResponse,
 )
 from .services import (
+    build_homework_retention_radar,
     build_leak_report,
     coach_chat,
     coach_create_drill_action,
@@ -396,6 +398,20 @@ def reports_leaks(window_days: int = Query(default=30, alias="windowDays")) -> L
     supabase = get_supabase_client()
     parsed_window = 7 if window_days == 7 else 90 if window_days == 90 else 30
     return build_leak_report(supabase, parsed_window)
+
+
+@app.get("/api/admin/coach/homework-retention", response_model=HomeworkRetentionRadarResponse)
+def admin_coach_homework_retention(
+    window_days: int = Query(default=30, alias="windowDays"),
+    stale_threshold_hours: int = Query(default=24, alias="staleThresholdHours"),
+) -> HomeworkRetentionRadarResponse:
+    supabase = get_supabase_client()
+    parsed_window = 7 if window_days == 7 else 90 if window_days == 90 else 30
+    return build_homework_retention_radar(
+        supabase,
+        parsed_window,
+        stale_threshold_hours=max(1, min(stale_threshold_hours, 168)),
+    )
 
 
 @app.post("/api/coach/chat", response_model=CoachChatResponse)

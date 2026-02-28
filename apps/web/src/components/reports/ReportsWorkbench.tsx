@@ -3,10 +3,11 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useI18n } from '@/components/i18n/I18nProvider';
-import { apiClient } from '@/lib/apiClient';
+import { apiClient, type HomeworkRetentionRadarResponse } from '@/lib/apiClient';
 import { trackEvent } from '@/lib/analytics';
 
 const WINDOW_OPTIONS: Array<7 | 30 | 90> = [7, 30, 90];
+const ADMIN_HOMEWORK_RETENTION_V1 = process.env.NEXT_PUBLIC_ADMIN_HOMEWORK_RETENTION_V1 === '1';
 
 export function ReportsWorkbench() {
   const { t } = useI18n();
@@ -26,6 +27,9 @@ export function ReportsWorkbench() {
       relatedTag: string;
     }>
   >([]);
+  const [retentionRadar, setRetentionRadar] = useState<HomeworkRetentionRadarResponse | null>(null);
+  const [retentionLoading, setRetentionLoading] = useState(false);
+  const [retentionError, setRetentionError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -61,6 +65,46 @@ export function ReportsWorkbench() {
       cancelled = true;
     };
   }, [windowDays, t]);
+
+  useEffect(() => {
+    if (!ADMIN_HOMEWORK_RETENTION_V1) {
+      return;
+    }
+    let cancelled = false;
+    const run = async () => {
+      setRetentionLoading(true);
+      setRetentionError(null);
+      try {
+        const response = await apiClient.getHomeworkRetentionRadar(windowDays, 24);
+        if (cancelled) return;
+        setRetentionRadar(response);
+        trackEvent('report_opened', {
+          module: 'reports',
+          requestId: response.requestId,
+          payload: {
+            windowDays,
+            attachRatePct: response.attachRatePct,
+            completionRatePct: response.completionRatePct,
+            staleRiskRatePct: response.staleRiskRatePct,
+            biggestDropStageKey: response.biggestDropStageKey,
+          },
+        });
+      } catch (loadError) {
+        if (!cancelled) {
+          setRetentionError(loadError instanceof Error ? loadError.message : 'Failed to load homework retention radar.');
+        }
+      } finally {
+        if (!cancelled) {
+          setRetentionLoading(false);
+        }
+      }
+    };
+
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [windowDays]);
 
   return (
     <section className="mvp-panel" aria-labelledby="reports-title">
@@ -121,6 +165,38 @@ export function ReportsWorkbench() {
           </ul>
         ) : null}
       </article>
+
+      {ADMIN_HOMEWORK_RETENTION_V1 ? (
+        <article className="mvp-card" data-testid="admin-homework-retention-radar">
+          <h2>Admin Homework Retention Radar</h2>
+          <p className="mvp-muted">Track attach/completion drop-off and stale homework risk within the selected window.</p>
+          {retentionLoading ? <p className="mvp-muted">Loading homework retention radar...</p> : null}
+          {!retentionLoading && retentionRadar ? (
+            <div className="mvp-stack">
+              <p>
+                Attach <strong>{retentionRadar.attachRatePct.toFixed(1)}%</strong> · Completion{' '}
+                <strong>{retentionRadar.completionRatePct.toFixed(1)}%</strong> · Stale risk{' '}
+                <strong>{retentionRadar.staleRiskRatePct.toFixed(1)}%</strong>
+              </p>
+              <p>
+                Sessions: assigned {retentionRadar.assignedSessions} → started {retentionRadar.startedSessions} → completed{' '}
+                {retentionRadar.completedSessions}; stale {retentionRadar.staleSessions}
+              </p>
+              <p>
+                Biggest drop stage:{' '}
+                <strong>
+                  {retentionRadar.biggestDropStageKey === 'assigned_to_started'
+                    ? 'Assignment → Start'
+                    : retentionRadar.biggestDropStageKey === 'started_to_completed'
+                      ? 'Start → Completion'
+                      : 'None'}
+                </strong>
+              </p>
+            </div>
+          ) : null}
+          {retentionError ? <p className="module-error-text">{retentionError}</p> : null}
+        </article>
+      ) : null}
 
       {error ? <p className="module-error-text">{error}</p> : null}
     </section>

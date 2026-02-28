@@ -1,0 +1,31 @@
+# Hourly Build Log
+
+## 2026-03-01 06:27 Asia/Shanghai
+- Branch: `pg/hourly-20260301-0627-homework-retention-radar`
+- PRD item: `T-010 Admin homework retention radar + stale-risk telemetry`
+- Deep scan conclusion (highest-impact optimization this run): homework assignment→start→completion blind spot in admin ops; no stale-risk lens to trigger intervention loops.
+- Track coverage status:
+  - Backend: ✅ shipped this run (`/api/admin/coach/homework-retention`)
+  - Admin Web: ✅ shipped this run (Reports card behind feature flag)
+  - Mobile: ⏭️ explicitly tracked as next candidate (read-only retention card)
+- Changed files:
+  - `services/api/app/{main.py,services.py,schemas.py}`
+  - `apps/web/src/{lib/apiClient.ts,components/reports/ReportsWorkbench.tsx}`
+  - `docs/product/{2026-03-01-admin-homework-retention-radar.md,COMMERCIALIZATION_MASTER_TABLE.md,HOURLY_BUILD_LOG.md}`
+  - `/home/allen/.openclaw/workspace/tasks/prd-poker-god-hourly-commercialization.md`
+- Validation:
+  - `npm --workspace @poker-god/web run typecheck`
+  - `npm run build:web`
+  - `npm run build:api`
+  - `python3 -m py_compile services/api/app/main.py services/api/app/services.py services/api/app/schemas.py`
+- Feature-flag rollout:
+  - `NEXT_PUBLIC_ADMIN_HOMEWORK_RETENTION_V1=1` internal canary
+- Data/API notes:
+  - API computes assigned/started/completed session counts from Supabase `pg_mvp_events` and emits stale session risk based on `staleThresholdHours`.
+  - No schema migration required (read-only aggregation path). If event volume grows, next migration should materialize daily retention snapshot table in Supabase.
+- Push result:
+  - pending in this run at log-write time
+- Blockers:
+  - none
+- Next action:
+  - implement mobile retention radar card and compare mobile/admin stale-risk drift in 7-day windows

@@ -33,6 +33,8 @@ from .schemas import (
     DrillListResponse,
     LeakReportItem,
     LeakReportResponse,
+    HomeworkRetentionRadarResponse,
+    HomeworkRetentionStage,
     PracticeAnswerFeedback,
     PracticeCompleteSessionResponse,
     PracticeQuestion,
@@ -1872,6 +1874,125 @@ def build_leak_report(supabase: Client, window_days: int) -> LeakReportResponse:
         windowDays=7 if window_days == 7 else 90 if window_days == 90 else 30,
         generatedAt=now_iso(),
         items=items,
+    )
+
+
+def build_homework_retention_radar(
+    supabase: Client,
+    window_days: int,
+    stale_threshold_hours: int = 24,
+) -> HomeworkRetentionRadarResponse:
+    rid = request_id()
+    normalized_window = 7 if window_days == 7 else 90 if window_days == 90 else 30
+    cutoff = datetime.now(UTC) - timedelta(days=normalized_window)
+
+    rows = (
+        supabase.table("pg_mvp_events")
+        .select("event_name,event_time,session_id,payload")
+        .gte("event_time", cutoff.isoformat())
+        .in_("event_name", ["coach_action_executed", "drill_started", "drill_completed"])
+        .execute()
+        .data
+        or []
+    )
+
+    assigned_sessions: set[str] = set()
+    started_sessions: set[str] = set()
+    completed_sessions: set[str] = set()
+    started_at: dict[str, datetime] = {}
+
+    for row in rows:
+        session_id = str(row.get("session_id") or "").strip()
+        if not session_id:
+            continue
+
+        event_name = str(row.get("event_name") or "")
+        event_time_raw = str(row.get("event_time") or "")
+        payload = row.get("payload") if isinstance(row.get("payload"), dict) else {}
+
+        try:
+            event_time = datetime.fromisoformat(event_time_raw.replace("Z", "+00:00"))
+            if event_time.tzinfo is None:
+                event_time = event_time.replace(tzinfo=UTC)
+            else:
+                event_time = event_time.astimezone(UTC)
+        except ValueError:
+            event_time = datetime.now(UTC)
+
+        if event_name == "coach_action_executed":
+            action_name = str(payload.get("action") or payload.get("type") or "").lower()
+            if "drill" in action_name or "homework" in action_name or action_name == "create_plan":
+                assigned_sessions.add(session_id)
+        elif event_name == "drill_started":
+            started_sessions.add(session_id)
+            previous_started_at = started_at.get(session_id)
+            if previous_started_at is None or event_time < previous_started_at:
+                started_at[session_id] = event_time
+        elif event_name == "drill_completed":
+            completed_sessions.add(session_id)
+
+    if not assigned_sessions:
+        assigned_sessions = set(started_sessions)
+
+    stale_cutoff = datetime.now(UTC) - timedelta(hours=max(1, stale_threshold_hours))
+    stale_sessions = {
+        sid
+        for sid in started_sessions
+        if sid not in completed_sessions and started_at.get(sid, datetime.now(UTC)) <= stale_cutoff
+    }
+
+    assigned_count = len(assigned_sessions)
+    started_count = len(started_sessions)
+    completed_count = len(completed_sessions)
+
+    attach_rate = round((started_count / assigned_count) * 100, 1) if assigned_count > 0 else 0.0
+    completion_rate = round((completed_count / started_count) * 100, 1) if started_count > 0 else 0.0
+    stale_risk_rate = round((len(stale_sessions) / started_count) * 100, 1) if started_count > 0 else 0.0
+
+    assigned_to_started_drop = max(0, assigned_count - started_count)
+    started_to_completed_drop = max(0, started_count - completed_count)
+    if assigned_to_started_drop == 0 and started_to_completed_drop == 0:
+        biggest_drop = "none"
+    elif assigned_to_started_drop >= started_to_completed_drop:
+        biggest_drop = "assigned_to_started"
+    else:
+        biggest_drop = "started_to_completed"
+
+    stages = [
+        HomeworkRetentionStage(
+            key="assigned",
+            label="Coach homework assigned",
+            sessions=assigned_count,
+            conversionRatePct=100.0 if assigned_count > 0 else 0.0,
+        ),
+        HomeworkRetentionStage(
+            key="started",
+            label="Homework started",
+            sessions=started_count,
+            conversionRatePct=attach_rate,
+        ),
+        HomeworkRetentionStage(
+            key="completed",
+            label="Homework completed",
+            sessions=completed_count,
+            conversionRatePct=completion_rate,
+        ),
+    ]
+
+    return HomeworkRetentionRadarResponse(
+        requestId=rid,
+        windowDays=normalized_window,
+        generatedAt=now_iso(),
+        staleThresholdHours=max(1, stale_threshold_hours),
+        assignedSessions=assigned_count,
+        startedSessions=started_count,
+        completedSessions=completed_count,
+        staleSessions=len(stale_sessions),
+        attachRatePct=attach_rate,
+        completionRatePct=completion_rate,
+        staleRiskRatePct=stale_risk_rate,
+        biggestDropStageKey=biggest_drop,  # type: ignore[arg-type]
+        stages=stages,
     )
 
 

@@ -318,6 +318,29 @@ class LeakReportResponse(BaseModel):
     items: list[LeakReportItem]
 
 
+class HomeworkRetentionStage(BaseModel):
+    key: Literal["assigned", "started", "completed"]
+    label: str
+    sessions: int
+    conversionRatePct: float
+
+
+class HomeworkRetentionRadarResponse(BaseModel):
+    requestId: str
+    windowDays: Literal[7, 30, 90]
+    generatedAt: str
+    staleThresholdHours: int
+    assignedSessions: int
+    startedSessions: int
+    completedSessions: int
+    staleSessions: int
+    attachRatePct: float
+    completionRatePct: float
+    staleRiskRatePct: float
+    biggestDropStageKey: Literal["assigned_to_started", "started_to_completed", "none"]
+    stages: list[HomeworkRetentionStage]
+
+
 CoachModule = Literal["study", "practice", "analyze", "reports"]
 CoachMode = Literal["Explain", "Fix", "Drill", "Plan"]
 CoachActionType = Literal["create_drill", "create_plan"]
