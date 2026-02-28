@@ -3,6 +3,8 @@ import type {
   AnalyticsIngestRequest,
   AnalyticsIngestResponse,
   AnalyzeHandsResponse,
+  AnalyzeMistakeOverviewResponse,
+  AnalyzeMistakeSummaryResponse,
   AnalyzeUpload,
   AnalyzeUploadCreateRequest,
   AnalyzeUploadResponse,
@@ -62,6 +64,9 @@ const TAG_ROTATION = [
   'over_fold',
   'size_mismatch',
 ] as const;
+
+const ANALYZE_SUMMARY_CACHE_TTL_MS = 60_000;
+const analyzeMistakeSummaryCache = new Map<string, { expiresAt: number; response: AnalyzeMistakeSummaryResponse }>();
 
 function nowIso() {
   return new Date().toISOString();
@@ -211,6 +216,44 @@ function buildLeakRecommendation(tag: string) {
   if (tag === 'missed_value') return '提升薄价值下注覆盖，减少 river 被动 check-back。';
   if (tag === 'over_fold') return '降低中等强度牌过度弃牌比例，扩大防守阈值。';
   return '统一 sizing 结构，减少同类牌型下注尺度漂移。';
+}
+
+function listSourceHands(uploadId?: string) {
+  return uploadId
+    ? (analyzeUploads.get(uploadId)?.hands ?? [])
+    : Array.from(analyzeUploads.values()).flatMap((record) => record.hands);
+}
+
+function buildClusters(hands: AnalyzedHand[]) {
+  const byTag = new Map<string, { count: number; totalEvLoss: number }>();
+  for (const hand of hands) {
+    for (const tag of hand.tags) {
+      const existing = byTag.get(tag) ?? { count: 0, totalEvLoss: 0 };
+      byTag.set(tag, {
+        count: existing.count + 1,
+        totalEvLoss: Number((existing.totalEvLoss + hand.evLossBb100).toFixed(2)),
+      });
+    }
+  }
+
+  return Array.from(byTag.entries())
+    .map(([tag, value]) => {
+      const averageEvLoss = value.count > 0 ? value.totalEvLoss / value.count : 0;
+      const severity = averageEvLoss >= 18 ? 'critical' : averageEvLoss >= 10 ? 'high' : 'medium';
+      return {
+        tag,
+        handsCount: value.count,
+        averageEvLossBb100: Number(averageEvLoss.toFixed(1)),
+        totalEvLossBb100: Number(value.totalEvLoss.toFixed(1)),
+        severity,
+        recommendation: buildLeakRecommendation(tag),
+      };
+    })
+    .sort((left, right) => right.totalEvLossBb100 - left.totalEvLossBb100);
+}
+
+function clearAnalyzeSummaryCache() {
+  analyzeMistakeSummaryCache.clear();
 }
 
 function buildCoachSections(input: CoachChatRequest): CoachChatResponse['sections'] {
@@ -460,6 +503,7 @@ export function createAnalyzeUpload(
       };
     }
     analyzeUploads.set(id, maybeRecord);
+    clearAnalyzeSummaryCache();
   }, 1100);
 
   return {
@@ -487,11 +531,11 @@ export function listAnalyzeHands(
     sortBy?: 'ev_loss' | 'played_at';
     position?: string;
     tag?: string;
+    limit?: number;
+    offset?: number;
   },
 ): AnalyzeHandsResponse {
-  const source = filters.uploadId
-    ? (analyzeUploads.get(filters.uploadId)?.hands ?? [])
-    : Array.from(analyzeUploads.values()).flatMap((record) => record.hands);
+  const source = listSourceHands(filters.uploadId);
 
   const filtered = source.filter((hand) => {
     const matchPosition = !filters.position || hand.position === filters.position;
@@ -506,9 +550,110 @@ export function listAnalyzeHands(
     return right.evLossBb100 - left.evLossBb100;
   });
 
+  const total = sorted.length;
+  const limit = clamp(filters.limit ?? 50, 1, 200);
+  const offset = clamp(filters.offset ?? 0, 0, Math.max(total - 1, 0));
+  const hands = sorted.slice(offset, offset + limit);
+
   return {
     requestId,
-    hands: sorted,
+    hands,
+    total,
+    limit,
+    offset,
+    hasMore: offset + hands.length < total,
+  };
+}
+
+export function buildAnalyzeMistakeSummary(
+  requestId: string,
+  options: { uploadId?: string; topN?: number },
+): AnalyzeMistakeSummaryResponse {
+  const topN = clamp(options.topN ?? 3, 1, 8);
+  const cacheKey = `${options.uploadId ?? 'all'}:${topN}`;
+  const cached = analyzeMistakeSummaryCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return {
+      ...cached.response,
+      requestId,
+      cache: {
+        hit: true,
+        ttlMs: Math.max(0, cached.expiresAt - Date.now()),
+      },
+    };
+  }
+
+  const rankedByRecent = [...listSourceHands(options.uploadId)].sort((left, right) => right.playedAt.localeCompare(left.playedAt));
+  const windowHands = rankedByRecent.slice(0, 300);
+  const clusters = buildClusters(windowHands);
+  const topClusters = clusters.slice(0, topN);
+
+  const averageEvLossBb100 =
+    windowHands.length > 0
+      ? Number((windowHands.reduce((sum, hand) => sum + hand.evLossBb100, 0) / windowHands.length).toFixed(1))
+      : 0;
+
+  const response: AnalyzeMistakeSummaryResponse = {
+    requestId,
+    generatedAt: nowIso(),
+    windowHands: windowHands.length,
+    biggestLeakTag: topClusters[0]?.tag ?? null,
+    averageEvLossBb100,
+    cache: {
+      hit: false,
+      ttlMs: ANALYZE_SUMMARY_CACHE_TTL_MS,
+    },
+    topClusters,
+    suggestedHomework: topClusters.map((cluster, index) => ({
+      title: `Leak 修复 Drill #${index + 1}: ${cluster.tag}`,
+      focusTag: cluster.tag,
+      itemCount: cluster.severity === 'critical' ? 28 : cluster.severity === 'high' ? 20 : 14,
+      targetEvRecoveryBb100: Number((cluster.averageEvLossBb100 * 0.4).toFixed(1)),
+    })),
+  };
+
+  analyzeMistakeSummaryCache.set(cacheKey, {
+    response,
+    expiresAt: Date.now() + ANALYZE_SUMMARY_CACHE_TTL_MS,
+  });
+
+  return response;
+}
+
+export function buildAnalyzeMistakeOverview(
+  requestId: string,
+  options: { uploadId?: string },
+): AnalyzeMistakeOverviewResponse {
+  const rankedByRecent = [...listSourceHands(options.uploadId)].sort((left, right) => right.playedAt.localeCompare(left.playedAt));
+  const currentWindow = rankedByRecent.slice(0, 150);
+  const previousWindow = rankedByRecent.slice(150, 300);
+
+  const currentAverage =
+    currentWindow.length > 0
+      ? currentWindow.reduce((sum, hand) => sum + hand.evLossBb100, 0) / currentWindow.length
+      : 0;
+  const previousAverage =
+    previousWindow.length > 0
+      ? previousWindow.reduce((sum, hand) => sum + hand.evLossBb100, 0) / previousWindow.length
+      : 0;
+
+  const evLossTrendPct = previousAverage > 0
+    ? Number((((currentAverage - previousAverage) / previousAverage) * 100).toFixed(1))
+    : 0;
+
+  const clusters = buildClusters(currentWindow).slice(0, 5);
+  const criticalClusterCount = clusters.filter((cluster) => cluster.severity === 'critical').length;
+
+  return {
+    requestId,
+    generatedAt: nowIso(),
+    currentWindowHands: currentWindow.length,
+    previousWindowHands: previousWindow.length,
+    averageEvLossBb100: Number(currentAverage.toFixed(1)),
+    evLossTrendPct,
+    topLeakTag: clusters[0]?.tag ?? null,
+    criticalClusterCount,
+    recommendedAction: criticalClusterCount >= 2 || evLossTrendPct > 12 ? 'launch_homework_campaign' : 'monitor',
   };
 }
 

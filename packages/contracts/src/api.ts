@@ -269,6 +269,50 @@ export interface AnalyzedHand {
 export interface AnalyzeHandsResponse {
   requestId: string;
   hands: AnalyzedHand[];
+  total?: number;
+  limit?: number;
+  offset?: number;
+  hasMore?: boolean;
+}
+
+export interface AnalyzeMistakeCluster {
+  tag: string;
+  handsCount: number;
+  averageEvLossBb100: number;
+  totalEvLossBb100: number;
+  severity: 'critical' | 'high' | 'medium';
+  recommendation: string;
+}
+
+export interface AnalyzeMistakeSummaryResponse {
+  requestId: string;
+  generatedAt: string;
+  windowHands: number;
+  biggestLeakTag: string | null;
+  averageEvLossBb100: number;
+  cache: {
+    hit: boolean;
+    ttlMs: number;
+  };
+  topClusters: AnalyzeMistakeCluster[];
+  suggestedHomework: {
+    title: string;
+    focusTag: string;
+    itemCount: number;
+    targetEvRecoveryBb100: number;
+  }[];
+}
+
+export interface AnalyzeMistakeOverviewResponse {
+  requestId: string;
+  generatedAt: string;
+  currentWindowHands: number;
+  previousWindowHands: number;
+  averageEvLossBb100: number;
+  evLossTrendPct: number;
+  topLeakTag: string | null;
+  criticalClusterCount: number;
+  recommendedAction: 'monitor' | 'launch_homework_campaign';
 }
 
 export type LeakConfidence = 'high' | 'medium' | 'low';

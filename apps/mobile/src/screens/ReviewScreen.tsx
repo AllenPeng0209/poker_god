@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import type { HandRecordDetail, HandRecordSummary } from '../storage/localDb';
 
@@ -14,6 +14,19 @@ type ReviewScreenProps = {
   onRefresh: () => void;
   onReplayHand: (recordId: number) => void;
   onResumePlay: () => void;
+};
+
+type MobileHomeworkSuggestion = {
+  title: string;
+  focusTag: string;
+  itemCount: number;
+  targetEvRecoveryBb100: number;
+};
+
+type MobileAnalyzeMistakeSummary = {
+  biggestLeakTag: string | null;
+  averageEvLossBb100: number;
+  suggestedHomework: MobileHomeworkSuggestion[];
 };
 
 function l(language: AppLanguage, zhTw: string, zhCn: string, en: string): string {
@@ -54,6 +67,15 @@ function recordProfit(summary: HandRecordSummary): number {
   return summary.heroStackEnd - summary.heroStackStart;
 }
 
+async function fetchAnalyzeMistakeSummary(): Promise<MobileAnalyzeMistakeSummary | null> {
+  const baseUrl = (process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://localhost:3001').replace(/\/+$/, '');
+  const response = await fetch(`${baseUrl}/api/analyze/mistakes/summary?topN=2`);
+  if (!response.ok) {
+    return null;
+  }
+  return (await response.json()) as MobileAnalyzeMistakeSummary;
+}
+
 export function ReviewScreen({
   language,
   loading,
@@ -72,6 +94,30 @@ export function ReviewScreen({
     [records, selectedRecordId],
   );
   const replayRecordId = selectedSummary?.id ?? detail?.id ?? null;
+  const [homeworkSummary, setHomeworkSummary] = useState<MobileAnalyzeMistakeSummary | null>(null);
+  const [homeworkLoading, setHomeworkLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      setHomeworkLoading(true);
+      try {
+        const data = await fetchAnalyzeMistakeSummary();
+        if (!cancelled) {
+          setHomeworkSummary(data);
+        }
+      } finally {
+        if (!cancelled) {
+          setHomeworkLoading(false);
+        }
+      }
+    };
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [records.length]);
 
   return (
     <View style={styles.root}>
@@ -87,6 +133,25 @@ export function ReviewScreen({
               'Every hand is auto-recorded. Start from the list, then inspect each hand timeline.',
             )}
           </Text>
+          <View style={styles.homeworkCard}>
+            <Text style={styles.homeworkTitle}>{l(language, 'AI 教練作業建議', 'AI 教练作业建议', 'AI Coach Homework')}</Text>
+            {homeworkLoading ? <Text style={styles.homeworkBody}>{l(language, '同步中…', '同步中…', 'Syncing...')}</Text> : null}
+            {!homeworkLoading && homeworkSummary ? (
+              <>
+                <Text style={styles.homeworkBody}>
+                  {l(language, '最大漏洞', '最大漏洞', 'Top leak')}: {homeworkSummary.biggestLeakTag ?? l(language, '暫無', '暂无', 'N/A')} · EV {homeworkSummary.averageEvLossBb100.toFixed(1)}
+                </Text>
+                {homeworkSummary.suggestedHomework.slice(0, 1).map((item) => (
+                  <Text key={item.title} style={styles.homeworkBody}>
+                    {item.title} · {item.itemCount} {l(language, '題', '题', 'items')} · +{item.targetEvRecoveryBb100.toFixed(1)} bb/100
+                  </Text>
+                ))}
+              </>
+            ) : null}
+            {!homeworkLoading && !homeworkSummary ? (
+              <Text style={styles.homeworkBody}>{l(language, '暫無可用建議，請先上傳手牌。', '暂无可用建议，请先上传手牌。', 'No suggestions yet. Upload hands first.')}</Text>
+            ) : null}
+          </View>
         </View>
         <View style={styles.headerActions}>
           <Pressable onPress={onRefresh} style={({ pressed }) => [styles.headerBtn, pressed && styles.pressed]}>
@@ -248,6 +313,26 @@ const styles = StyleSheet.create({
   headerSub: {
     color: '#c1e0ea',
     fontSize: 12,
+  },
+  homeworkCard: {
+    marginTop: 6,
+    borderWidth: 1,
+    borderColor: '#3f6d7d',
+    borderRadius: 10,
+    backgroundColor: '#163747',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    gap: 3,
+  },
+  homeworkTitle: {
+    color: '#d9fff3',
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  homeworkBody: {
+    color: '#b8d8e4',
+    fontSize: 11,
+    fontWeight: '700',
   },
   headerActions: {
     flexDirection: 'row',

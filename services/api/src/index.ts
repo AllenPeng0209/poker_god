@@ -4,6 +4,8 @@ import type {
   AnalyticsIngestRequest,
   AnalyticsIngestResponse,
   AnalyzeHandsResponse,
+  AnalyzeMistakeOverviewResponse,
+  AnalyzeMistakeSummaryResponse,
   AnalyzeUploadCreateRequest,
   AnalyzeUploadResponse,
   CoachChatRequest,
@@ -27,6 +29,8 @@ import type {
 } from '@poker-god/contracts';
 import { trainingZones } from '@poker-god/domain-poker/data/zones';
 import {
+  buildAnalyzeMistakeOverview,
+  buildAnalyzeMistakeSummary,
   buildLeakReport,
   coachChat,
   coachCreateDrillAction,
@@ -240,7 +244,14 @@ app.get<{ Params: { uploadId: string } }>(
 );
 
 app.get<{
-  Querystring: { uploadId?: string; sortBy?: 'ev_loss' | 'played_at'; position?: string; tag?: string };
+  Querystring: {
+    uploadId?: string;
+    sortBy?: 'ev_loss' | 'played_at';
+    position?: string;
+    tag?: string;
+    limit?: string;
+    offset?: string;
+  };
 }>(
   '/api/analyze/hands',
   async (
@@ -251,6 +262,32 @@ app.get<{
       sortBy: request.query.sortBy,
       position: request.query.position,
       tag: request.query.tag,
+      limit: request.query.limit ? Number(request.query.limit) : undefined,
+      offset: request.query.offset ? Number(request.query.offset) : undefined,
+    });
+  },
+);
+
+app.get<{ Querystring: { uploadId?: string; topN?: string } }>(
+  '/api/analyze/mistakes/summary',
+  async (
+    request,
+  ): Promise<AnalyzeMistakeSummaryResponse> => {
+    const topN = request.query.topN ? Number(request.query.topN) : undefined;
+    return buildAnalyzeMistakeSummary(requestId(), {
+      uploadId: request.query.uploadId,
+      topN,
+    });
+  },
+);
+
+app.get<{ Querystring: { uploadId?: string } }>(
+  '/api/admin/analyze/mistakes/overview',
+  async (
+    request,
+  ): Promise<AnalyzeMistakeOverviewResponse> => {
+    return buildAnalyzeMistakeOverview(requestId(), {
+      uploadId: request.query.uploadId,
     });
   },
 );
