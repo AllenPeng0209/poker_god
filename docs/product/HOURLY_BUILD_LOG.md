@@ -30,4 +30,5 @@
 - Admin track: add commercialization funnel dashboard (`PG-023`).
 
 ### Push result
-- Pending at log time (to be updated after push).
+- ✅ Pushed: `origin/pg/hourly-20260228-1403-coach-homework-queue`
+- PR URL: https://github.com/AllenPeng0209/poker_god/pull/new/pg/hourly-20260228-1403-coach-homework-queue
