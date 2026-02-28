@@ -26,6 +26,8 @@ export function ReportsWorkbench() {
       relatedTag: string;
     }>
   >([]);
+  const [launchingLeakId, setLaunchingLeakId] = useState<string | null>(null);
+  const [launchResult, setLaunchResult] = useState<string>('');
 
   useEffect(() => {
     let cancelled = false;
@@ -61,6 +63,34 @@ export function ReportsWorkbench() {
       cancelled = true;
     };
   }, [windowDays, t]);
+
+  const launchCampaign = async (item: (typeof items)[number]) => {
+    setLaunchingLeakId(item.id);
+    setLaunchResult('');
+    try {
+      const response = await apiClient.createLeakCampaign({
+        leakId: item.id,
+        owner: 'admin-web',
+        title: `Fix ${item.relatedTag} from leak report`,
+        channel: 'in_app',
+        featureFlag: 'admin_campaign_launch_v1',
+      });
+      setLaunchResult(`Campaign created: ${response.campaign.title} (${response.campaign.targetLiftPct}% target lift)`);
+      trackEvent('admin_campaign_launched', {
+        module: 'admin',
+        requestId: response.requestId,
+        payload: {
+          leakId: item.id,
+          campaignId: response.campaign.id,
+          featureFlag: response.campaign.featureFlag,
+        },
+      });
+    } catch (campaignError) {
+      setLaunchResult(campaignError instanceof Error ? campaignError.message : 'Failed to create campaign');
+    } finally {
+      setLaunchingLeakId(null);
+    }
+  };
 
   return (
     <section className="mvp-panel" aria-labelledby="reports-title">
@@ -113,15 +143,26 @@ export function ReportsWorkbench() {
                   })}
                 </p>
                 <p>{item.recommendation}</p>
-                <Link className="module-next-link" href={`/app/analyze?tag=${encodeURIComponent(item.relatedTag)}`}>
-                  {t('reports.items.jumpAnalyze', { tag: item.relatedTag })}
-                </Link>
+                <div className="mvp-inline" style={{ marginTop: 8, gap: 12 }}>
+                  <Link className="module-next-link" href={`/app/analyze?tag=${encodeURIComponent(item.relatedTag)}`}>
+                    {t('reports.items.jumpAnalyze', { tag: item.relatedTag })}
+                  </Link>
+                  <button
+                    type="button"
+                    className="module-next-link"
+                    onClick={() => void launchCampaign(item)}
+                    disabled={launchingLeakId === item.id}
+                  >
+                    {launchingLeakId === item.id ? 'Launching…' : 'Launch homework campaign'}
+                  </button>
+                </div>
               </li>
             ))}
           </ul>
         ) : null}
       </article>
 
+      {launchResult ? <p className="mvp-muted">{launchResult}</p> : null}
       {error ? <p className="module-error-text">{error}</p> : null}
     </section>
   );

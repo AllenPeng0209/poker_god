@@ -318,6 +318,34 @@ class LeakReportResponse(BaseModel):
     items: list[LeakReportItem]
 
 
+class LeakCampaignCreateRequest(BaseModel):
+    leakId: str
+    title: str | None = None
+    owner: str
+    channel: Literal["in_app", "push", "email"] = "in_app"
+    featureFlag: str = "admin_campaign_launch_v1"
+
+
+class LeakCampaign(BaseModel):
+    id: str
+    leakId: str
+    leakTag: str
+    leakTitle: str
+    title: str
+    owner: str
+    channel: Literal["in_app", "push", "email"]
+    featureFlag: str
+    status: Literal["draft", "active", "paused"]
+    kpiMetric: Literal["coach_homework_attach_rate"]
+    targetLiftPct: float
+    createdAt: str
+
+
+class LeakCampaignCreateResponse(BaseModel):
+    requestId: str
+    campaign: LeakCampaign
+
+
 CoachModule = Literal["study", "practice", "analyze", "reports"]
 CoachMode = Literal["Explain", "Fix", "Drill", "Plan"]
 CoachActionType = Literal["create_drill", "create_plan"]
@@ -390,6 +418,7 @@ AnalyticsEventName = Literal[
     "report_opened",
     "coach_message_sent",
     "coach_action_executed",
+    "admin_campaign_launched",
 ]
 
 
@@ -399,7 +428,7 @@ class AnalyticsEvent(BaseModel):
     sessionId: str
     userId: str | None = None
     route: str
-    module: Literal["study", "practice", "analyze", "reports", "coach"]
+    module: Literal["study", "practice", "analyze", "reports", "coach", "admin"]
     requestId: str | None = None
     payload: dict[str, Any] | None = None
 

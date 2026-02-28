@@ -28,6 +28,8 @@ from .schemas import (
     DrillListResponse,
     ErrorBody,
     HealthResponse,
+    LeakCampaignCreateRequest,
+    LeakCampaignCreateResponse,
     LeakReportResponse,
     PracticeCompleteSessionResponse,
     PracticeSessionStartRequest,
@@ -49,6 +51,7 @@ from .services import (
     complete_practice_session,
     create_analyze_upload,
     create_drill,
+    create_leak_campaign,
     generate_zen_chat,
     get_analyze_upload,
     get_study_spot_matrix,
@@ -396,6 +399,15 @@ def reports_leaks(window_days: int = Query(default=30, alias="windowDays")) -> L
     supabase = get_supabase_client()
     parsed_window = 7 if window_days == 7 else 90 if window_days == 90 else 30
     return build_leak_report(supabase, parsed_window)
+
+
+@app.post("/api/admin/campaigns/leak", response_model=LeakCampaignCreateResponse)
+def admin_create_leak_campaign(payload: LeakCampaignCreateRequest) -> LeakCampaignCreateResponse | JSONResponse:
+    supabase = get_supabase_client()
+    result = create_leak_campaign(supabase, payload)
+    if isinstance(result, str):
+        return _error(400, "invalid_campaign_request", result)
+    return result
 
 
 @app.post("/api/coach/chat", response_model=CoachChatResponse)

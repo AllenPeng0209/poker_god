@@ -12,6 +12,8 @@ import type {
   DrillCreateRequest,
   DrillCreateResponse,
   DrillListResponse,
+  LeakCampaignCreateRequest,
+  LeakCampaignCreateResponse,
   LeakReportResponse,
   PracticeCompleteSessionResponse,
   PracticeSessionStartRequest,
@@ -154,6 +156,13 @@ export const apiClient = {
 
   async getLeakReport(windowDays: 7 | 30 | 90): Promise<LeakReportResponse> {
     return requestJson<LeakReportResponse>(`/api/reports/leaks?windowDays=${windowDays}`);
+  },
+
+  async createLeakCampaign(input: LeakCampaignCreateRequest): Promise<LeakCampaignCreateResponse> {
+    return requestJson<LeakCampaignCreateResponse>('/api/admin/campaigns/leak', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
   },
 
   async zenChat(input: ZenChatRequest): Promise<ZenChatResponse> {

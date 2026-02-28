@@ -31,6 +31,9 @@ from .schemas import (
     DrillCreateResponse,
     DrillItem,
     DrillListResponse,
+    LeakCampaign,
+    LeakCampaignCreateRequest,
+    LeakCampaignCreateResponse,
     LeakReportItem,
     LeakReportResponse,
     PracticeAnswerFeedback,
@@ -1873,6 +1876,86 @@ def build_leak_report(supabase: Client, window_days: int) -> LeakReportResponse:
         generatedAt=now_iso(),
         items=items,
     )
+
+
+def create_leak_campaign(supabase: Client, payload: LeakCampaignCreateRequest) -> LeakCampaignCreateResponse | str:
+    rid = request_id()
+    leak_id = payload.leakId.strip()
+    owner = payload.owner.strip()
+    if not leak_id:
+        return "leakId is required"
+    if not owner:
+        return "owner is required"
+
+    leak_rows = supabase.table("pg_mvp_analyzed_hands").select("tags,ev_loss_bb100").limit(300).execute().data or []
+    grouped: dict[str, dict[str, float]] = {}
+    for row in leak_rows:
+        for tag in row.get("tags") or []:
+            if tag not in grouped:
+                grouped[tag] = {"count": 0, "ev_total": 0.0}
+            grouped[tag]["count"] += 1
+            grouped[tag]["ev_total"] += _safe_float(row.get("ev_loss_bb100"))
+
+    leak_items: list[LeakReportItem] = []
+    for tag, value in grouped.items():
+        sample_size = int(value["count"])
+        average_loss = value["ev_total"] / sample_size if sample_size > 0 else 0.0
+        impact = round(average_loss * (sample_size + 1) ** 0.5 * 10, 1)
+        leak_items.append(
+            LeakReportItem(
+                id=f"leak-{tag}",
+                title=f"Leak: {tag}",
+                sampleSize=sample_size,
+                confidence="high" if sample_size >= 20 else "medium" if sample_size >= 8 else "low",
+                impactScore=impact,
+                evLossBb100=round(average_loss, 1),
+                recommendation="",
+                relatedTag=tag,
+            ),
+        )
+
+    chosen = next((item for item in leak_items if item.id == leak_id), None)
+    if chosen is None:
+        return f"leak {leak_id} not found"
+
+    target_lift_pct = round(min(12.0, max(2.0, chosen.impactScore / 25.0)), 1)
+    campaign_row = (
+        supabase.table("pg_mvp_leak_campaigns")
+        .insert(
+            {
+                "leak_id": chosen.id,
+                "leak_tag": chosen.relatedTag,
+                "leak_title": chosen.title,
+                "title": payload.title or f"Coach fix {chosen.relatedTag}",
+                "owner": owner,
+                "channel": payload.channel,
+                "feature_flag": payload.featureFlag,
+                "status": "draft",
+                "kpi_metric": "coach_homework_attach_rate",
+                "target_lift_pct": target_lift_pct,
+                "created_at": now_iso(),
+                "updated_at": now_iso(),
+            },
+        )
+        .execute()
+        .data[0]
+    )
+
+    campaign = LeakCampaign(
+        id=str(campaign_row["id"]),
+        leakId=str(campaign_row["leak_id"]),
+        leakTag=str(campaign_row["leak_tag"]),
+        leakTitle=str(campaign_row["leak_title"]),
+        title=str(campaign_row["title"]),
+        owner=str(campaign_row["owner"]),
+        channel=str(campaign_row["channel"]),  # type: ignore[arg-type]
+        featureFlag=str(campaign_row["feature_flag"]),
+        status=str(campaign_row["status"]),  # type: ignore[arg-type]
+        kpiMetric="coach_homework_attach_rate",
+        targetLiftPct=_safe_float(campaign_row.get("target_lift_pct")),
+        createdAt=str(campaign_row["created_at"]),
+    )
+    return LeakCampaignCreateResponse(requestId=rid, campaign=campaign)
 
 
 def coach_chat(payload: CoachChatRequest) -> CoachChatResponse:

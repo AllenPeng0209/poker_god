@@ -291,6 +291,34 @@ export interface LeakReportResponse {
   items: LeakReportItem[];
 }
 
+export interface LeakCampaignCreateRequest {
+  leakId: string;
+  title?: string;
+  owner: string;
+  channel?: 'in_app' | 'push' | 'email';
+  featureFlag?: string;
+}
+
+export interface LeakCampaign {
+  id: string;
+  leakId: string;
+  leakTag: string;
+  leakTitle: string;
+  title: string;
+  owner: string;
+  channel: 'in_app' | 'push' | 'email';
+  featureFlag: string;
+  status: 'draft' | 'active' | 'paused';
+  kpiMetric: 'coach_homework_attach_rate';
+  targetLiftPct: number;
+  createdAt: string;
+}
+
+export interface LeakCampaignCreateResponse {
+  requestId: string;
+  campaign: LeakCampaign;
+}
+
 export type CoachModule = 'study' | 'practice' | 'analyze' | 'reports';
 export type CoachMode = 'Explain' | 'Fix' | 'Drill' | 'Plan';
 
@@ -363,7 +391,8 @@ export type AnalyticsEventName =
   | 'hand_uploaded'
   | 'report_opened'
   | 'coach_message_sent'
-  | 'coach_action_executed';
+  | 'coach_action_executed'
+  | 'admin_campaign_launched';
 
 export interface AnalyticsEvent {
   eventName: AnalyticsEventName;
@@ -371,7 +400,7 @@ export interface AnalyticsEvent {
   sessionId: string;
   userId?: string;
   route: string;
-  module: 'study' | 'practice' | 'analyze' | 'reports' | 'coach';
+  module: 'study' | 'practice' | 'analyze' | 'reports' | 'coach' | 'admin';
   requestId?: string;
   payload?: Record<string, unknown>;
 }
