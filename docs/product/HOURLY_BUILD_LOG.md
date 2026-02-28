@@ -15,7 +15,8 @@
 - Rollout / flags:
   - `NEXT_PUBLIC_API_RETRY_V1=1` enables retry hardening (default off).
   - `NEXT_PUBLIC_API_TIMEOUT_MS=8000` controls timeout threshold.
-- Push result: pending in-run; will be appended once push completes.
+- Push result: ✅ `git push -u origin pg/hourly-20260228-2252-api-timeout-retry`
+  - PR link: https://github.com/AllenPeng0209/poker_god/pull/new/pg/hourly-20260228-2252-api-timeout-retry
 - Blockers:
   - Mobile client still lacks equivalent timeout/retry abstraction (tracked for next run).
 - Next action:
