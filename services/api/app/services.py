@@ -25,6 +25,9 @@ from .schemas import (
     CoachCreateDrillRequest,
     CoachCreatePlanRequest,
     CoachCreatePlanResponse,
+    CoachConversationMemoryResponse,
+    CoachHomeworkTask,
+    CoachMemoryTheme,
     CoachSection,
     Drill,
     DrillCreateRequest,
@@ -1875,8 +1878,123 @@ def build_leak_report(supabase: Client, window_days: int) -> LeakReportResponse:
     )
 
 
+_COACH_THEME_PATTERNS: dict[str, tuple[str, ...]] = {
+    "river_decision": ("river", "河牌", "bluff catch", "bluff-catch"),
+    "cbet_structure": ("cbet", "c-bet", "continuation", "持续下注"),
+    "range_construction": ("range", "范围", "combo", "组合"),
+    "sizing": ("size", "sizing", "下注尺度", "bet size"),
+    "icm_pressure": ("icm", "bubble", "payjump", "奖金圈"),
+}
+
+_COACH_MEMORY_STORE: dict[str, dict[str, Any]] = {}
+
+
+def _extract_coach_themes(text: str) -> list[str]:
+    lowered = text.lower()
+    hits: list[str] = []
+    for key, patterns in _COACH_THEME_PATTERNS.items():
+        if any(pattern in lowered for pattern in patterns):
+            hits.append(key)
+    return hits
+
+
+def _build_homework(theme_counts: dict[str, int]) -> list[CoachHomeworkTask]:
+    ranked = sorted(theme_counts.items(), key=lambda item: item[1], reverse=True)
+    tasks: list[CoachHomeworkTask] = []
+    for index, (theme, mentions) in enumerate(ranked[:3]):
+        if theme == "river_decision":
+            title = "River bluff-catch decision drill (20 hands)"
+            reason = f"River decision leaks appeared {mentions} times in recent chat."
+            mode = "Drill"
+        elif theme == "cbet_structure":
+            title = "Flop c-bet sizing calibration"
+            reason = f"C-bet structure questions appeared {mentions} times."
+            mode = "Fix"
+        elif theme == "range_construction":
+            title = "Range matrix reconstruction session"
+            reason = f"Range construction focus repeated {mentions} times."
+            mode = "Plan"
+        elif theme == "sizing":
+            title = "Turn/river sizing ladder review"
+            reason = f"Sizing uncertainty surfaced {mentions} times."
+            mode = "Explain"
+        else:
+            title = "ICM pressure simulation block"
+            reason = f"ICM pressure spots mentioned {mentions} times."
+            mode = "Drill"
+
+        tasks.append(
+            CoachHomeworkTask(
+                id=f"hw-{theme}-{index + 1}",
+                title=title,
+                reason=reason,
+                suggestedMode=mode,  # type: ignore[arg-type]
+            ),
+        )
+
+    if not tasks:
+        tasks.append(
+            CoachHomeworkTask(
+                id="hw-default-1",
+                title="Baseline GTO review (15 mins)",
+                reason="Collect more chat context before assigning targeted homework.",
+                suggestedMode="Explain",
+            ),
+        )
+
+    return tasks
+
+
+def _update_conversation_memory(payload: CoachChatRequest) -> dict[str, Any]:
+    existing = _COACH_MEMORY_STORE.get(payload.conversationId) or {
+        "message_count": 0,
+        "last_user_message_at": None,
+        "theme_counts": {},
+        "updated_at": now_iso(),
+    }
+    theme_counts = dict(existing.get("theme_counts") or {})
+    for theme in _extract_coach_themes(payload.message):
+        theme_counts[theme] = _safe_int(theme_counts.get(theme), 0) + 1
+
+    updated = {
+        "message_count": _safe_int(existing.get("message_count"), 0) + 1,
+        "last_user_message_at": now_iso(),
+        "theme_counts": theme_counts,
+        "updated_at": now_iso(),
+    }
+    _COACH_MEMORY_STORE[payload.conversationId] = updated
+    return updated
+
+
+def get_coach_conversation_memory(conversation_id: str) -> CoachConversationMemoryResponse:
+    rid = request_id()
+    existing = _COACH_MEMORY_STORE.get(conversation_id) or {
+        "message_count": 0,
+        "last_user_message_at": None,
+        "theme_counts": {},
+        "updated_at": now_iso(),
+    }
+    theme_counts = dict(existing.get("theme_counts") or {})
+    themes = [
+        CoachMemoryTheme(key=key, mentions=_safe_int(value, 0))
+        for key, value in sorted(theme_counts.items(), key=lambda item: item[1], reverse=True)
+    ]
+
+    return CoachConversationMemoryResponse(
+        requestId=rid,
+        conversationId=conversation_id,
+        totalMessages=_safe_int(existing.get("message_count"), 0),
+        lastUserMessageAt=existing.get("last_user_message_at"),
+        themes=themes,
+        homework=_build_homework(theme_counts),
+        updatedAt=str(existing.get("updated_at") or now_iso()),
+    )
+
+
 def coach_chat(payload: CoachChatRequest) -> CoachChatResponse:
     rid = request_id()
+    memory = _update_conversation_memory(payload)
+    homework = _build_homework(dict(memory.get("theme_counts") or {}))
     mode_hint = {
         "Fix": "当前优先修复 EV 损失最高的决策模式。",
         "Drill": "当前最优路径是把问题转为可执行训练题集。",
@@ -1891,7 +2009,7 @@ def coach_chat(payload: CoachChatRequest) -> CoachChatResponse:
         ),
         CoachSection(
             name="行动建议",
-            content="优先执行 1 个主动作 + 1 个校验动作，并在下一次训练中复查频率偏差与 EV loss 变化。",
+            content=f"优先执行：{homework[0].title}。{homework[0].reason}",
         ),
         CoachSection(
             name="风险提示",
@@ -1899,7 +2017,8 @@ def coach_chat(payload: CoachChatRequest) -> CoachChatResponse:
         ),
         CoachSection(
             name="置信度",
-            content="Medium-High" if payload.history and len(payload.history) >= 2 else "Medium",
+            content=("Medium-High" if payload.history and len(payload.history) >= 2 else "Medium")
+            + f" · memory messages={_safe_int(memory.get('message_count'), 0)}",
         ),
     ]
     if payload.mode == "Plan":
@@ -1917,7 +2036,11 @@ def coach_chat(payload: CoachChatRequest) -> CoachChatResponse:
                 type="create_drill",
                 label="从当前上下文创建 Drill",
                 requiresConfirmation=False,
-                payload={"itemCount": 24 if payload.mode == "Drill" else 12, "sourceRefId": payload.conversationId},
+                payload={
+                    "itemCount": 24 if payload.mode == "Drill" else 12,
+                    "sourceRefId": payload.conversationId,
+                    "homeworkTitle": homework[0].title,
+                },
             ),
         ]
     return CoachChatResponse(

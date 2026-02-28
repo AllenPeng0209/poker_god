@@ -6,6 +6,7 @@ import type {
   AnalyzeUploadResponse,
   CoachChatRequest,
   CoachChatResponse,
+  CoachConversationMemoryResponse,
   CoachCreateDrillRequest,
   CoachCreatePlanRequest,
   CoachCreatePlanResponse,
@@ -168,6 +169,10 @@ export const apiClient = {
       method: 'POST',
       body: JSON.stringify(input),
     });
+  },
+
+  async getCoachConversationMemory(conversationId: string): Promise<CoachConversationMemoryResponse> {
+    return requestJson<CoachConversationMemoryResponse>(`/api/coach/conversations/${conversationId}/memory`);
   },
 
   async coachCreateDrill(input: CoachCreateDrillRequest): Promise<DrillCreateResponse> {

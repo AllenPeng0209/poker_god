@@ -23,6 +23,7 @@ from .schemas import (
     CoachCreateDrillRequest,
     CoachCreatePlanRequest,
     CoachCreatePlanResponse,
+    CoachConversationMemoryResponse,
     DrillCreateRequest,
     DrillCreateResponse,
     DrillListResponse,
@@ -50,6 +51,7 @@ from .services import (
     create_analyze_upload,
     create_drill,
     generate_zen_chat,
+    get_coach_conversation_memory,
     get_analyze_upload,
     get_study_spot_matrix,
     ingest_events,
@@ -396,6 +398,11 @@ def reports_leaks(window_days: int = Query(default=30, alias="windowDays")) -> L
     supabase = get_supabase_client()
     parsed_window = 7 if window_days == 7 else 90 if window_days == 90 else 30
     return build_leak_report(supabase, parsed_window)
+
+
+@app.get("/api/coach/conversations/{conversation_id}/memory", response_model=CoachConversationMemoryResponse)
+def coach_conversation_memory(conversation_id: str) -> CoachConversationMemoryResponse:
+    return get_coach_conversation_memory(conversation_id)
 
 
 @app.post("/api/coach/chat", response_model=CoachChatResponse)

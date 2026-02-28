@@ -327,6 +327,28 @@ export interface CoachChatResponse {
   createdAt: string;
 }
 
+export interface CoachMemoryTheme {
+  key: string;
+  mentions: number;
+}
+
+export interface CoachHomeworkTask {
+  id: string;
+  title: string;
+  reason: string;
+  suggestedMode: 'Drill' | 'Fix' | 'Plan' | 'Explain';
+}
+
+export interface CoachConversationMemoryResponse {
+  requestId: string;
+  conversationId: string;
+  totalMessages: number;
+  lastUserMessageAt?: string;
+  themes: CoachMemoryTheme[];
+  homework: CoachHomeworkTask[];
+  updatedAt: string;
+}
+
 export interface CoachCreateDrillRequest {
   conversationId: string;
   title: string;

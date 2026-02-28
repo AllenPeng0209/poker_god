@@ -1,6 +1,6 @@
 'use client';
 
-import type { CoachModule, ZenChatMessage, ZenChatResponse } from '@poker-god/contracts';
+import type { CoachHomeworkTask, CoachModule, ZenChatMessage, ZenChatResponse } from '@poker-god/contracts';
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { useI18n } from '@/components/i18n/I18nProvider';
 import { apiClient } from '@/lib/apiClient';
@@ -233,6 +233,7 @@ export function AICoachDrawer({ pathname, isOpen, width, onOpenChange, onWidthCh
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [memoryHomework, setMemoryHomework] = useState<CoachHomeworkTask[]>([]);
   const [provider, setProvider] = useState<ZenChatResponse['provider']>('heuristic');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setLoading] = useState(false);
@@ -277,6 +278,28 @@ export function AICoachDrawer({ pathname, isOpen, width, onOpenChange, onWidthCh
     }
     feedRef.current.scrollTop = feedRef.current.scrollHeight;
   }, [isOpen, messages]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    let active = true;
+    void apiClient
+      .getCoachConversationMemory(conversationId)
+      .then((memory) => {
+        if (!active) return;
+        setMemoryHomework(memory.homework.slice(0, 2));
+      })
+      .catch(() => {
+        if (!active) return;
+        setMemoryHomework([]);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [conversationId, isOpen]);
 
   function requestLatestContext(timeoutMs = 1000): Promise<CoachContextEvent | null> {
     return new Promise((resolve) => {
@@ -423,6 +446,10 @@ export function AICoachDrawer({ pathname, isOpen, width, onOpenChange, onWidthCh
 
       setProvider(response.provider);
       setSuggestions(response.suggestions);
+      void apiClient
+        .getCoachConversationMemory(conversationId)
+        .then((memory) => setMemoryHomework(memory.homework.slice(0, 2)))
+        .catch(() => setMemoryHomework([]));
       setMessages((prev) => [
         ...prev.slice(-40),
         {
@@ -510,6 +537,16 @@ export function AICoachDrawer({ pathname, isOpen, width, onOpenChange, onWidthCh
                   {locale === 'zh-CN' ? '忽略' : 'Dismiss'}
                 </button>
               </div>
+            </div>
+          ) : null}
+
+          {memoryHomework.length > 0 ? (
+            <div className="wizard-coach__suggestions">
+              {memoryHomework.map((task) => (
+                <button key={task.id} type="button" className="wizard-coach__chip" onClick={() => void handleAsk(task.title)} disabled={isLoading}>
+                  {locale === 'zh-CN' ? `作业：${task.title}` : `Homework: ${task.title}`}
+                </button>
+              ))}
             </div>
           ) : null}
 

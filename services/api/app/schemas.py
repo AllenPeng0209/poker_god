@@ -323,6 +323,28 @@ CoachMode = Literal["Explain", "Fix", "Drill", "Plan"]
 CoachActionType = Literal["create_drill", "create_plan"]
 
 
+class CoachMemoryTheme(BaseModel):
+    key: str
+    mentions: int
+
+
+class CoachHomeworkTask(BaseModel):
+    id: str
+    title: str
+    reason: str
+    suggestedMode: Literal["Drill", "Fix", "Plan", "Explain"]
+
+
+class CoachConversationMemoryResponse(BaseModel):
+    requestId: str
+    conversationId: str
+    totalMessages: int
+    lastUserMessageAt: str | None = None
+    themes: list[CoachMemoryTheme]
+    homework: list[CoachHomeworkTask]
+    updatedAt: str
+
+
 class CoachChatRequest(BaseModel):
     conversationId: str
     module: CoachModule
