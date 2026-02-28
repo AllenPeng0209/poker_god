@@ -411,3 +411,20 @@ class AnalyticsIngestRequest(BaseModel):
 class AnalyticsIngestResponse(BaseModel):
     requestId: str
     accepted: int
+
+
+class CoachFunnelStageMetric(BaseModel):
+    key: Literal["coach_message_sent", "coach_action_executed", "drill_started", "drill_completed"]
+    label: str
+    sessions: int
+    conversionPctFromPrev: float
+
+
+class CoachFunnelSummaryResponse(BaseModel):
+    requestId: str
+    windowDays: Literal[7, 30, 90]
+    generatedAt: str
+    stages: list[CoachFunnelStageMetric]
+    homeworkAttachRatePct: float
+    homeworkCompletionRatePct: float
+    biggestDropStageKey: str | None = None

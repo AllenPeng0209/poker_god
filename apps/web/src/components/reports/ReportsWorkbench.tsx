@@ -7,6 +7,7 @@ import { apiClient } from '@/lib/apiClient';
 import { trackEvent } from '@/lib/analytics';
 
 const WINDOW_OPTIONS: Array<7 | 30 | 90> = [7, 30, 90];
+const ADMIN_COACH_FUNNEL_FLAG = process.env.NEXT_PUBLIC_ADMIN_COACH_FUNNEL_V1 === '1';
 
 export function ReportsWorkbench() {
   const { t } = useI18n();
@@ -26,6 +27,18 @@ export function ReportsWorkbench() {
       relatedTag: string;
     }>
   >([]);
+  const [coachFunnel, setCoachFunnel] = useState<{
+    generatedAt: string;
+    homeworkAttachRatePct: number;
+    homeworkCompletionRatePct: number;
+    biggestDropStageKey?: string | null;
+    stages: Array<{
+      key: 'coach_message_sent' | 'coach_action_executed' | 'drill_started' | 'drill_completed';
+      label: string;
+      sessions: number;
+      conversionPctFromPrev: number;
+    }>;
+  } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -33,16 +46,31 @@ export function ReportsWorkbench() {
       setLoading(true);
       setError(null);
       try {
-        const response = await apiClient.getLeakReport(windowDays);
+        const [reportResponse, coachFunnelResponse] = await Promise.all([
+          apiClient.getLeakReport(windowDays),
+          ADMIN_COACH_FUNNEL_FLAG ? apiClient.getCoachFunnelSummary(windowDays) : Promise.resolve(null),
+        ]);
         if (cancelled) return;
-        setItems(response.items);
-        setGeneratedAt(response.generatedAt);
+        setItems(reportResponse.items);
+        setGeneratedAt(reportResponse.generatedAt);
+        setCoachFunnel(
+          coachFunnelResponse
+            ? {
+                generatedAt: coachFunnelResponse.generatedAt,
+                homeworkAttachRatePct: coachFunnelResponse.homeworkAttachRatePct,
+                homeworkCompletionRatePct: coachFunnelResponse.homeworkCompletionRatePct,
+                biggestDropStageKey: coachFunnelResponse.biggestDropStageKey,
+                stages: coachFunnelResponse.stages,
+              }
+            : null,
+        );
         trackEvent('report_opened', {
           module: 'reports',
-          requestId: response.requestId,
+          requestId: reportResponse.requestId,
           payload: {
             windowDays,
-            itemCount: response.items.length,
+            itemCount: reportResponse.items.length,
+            coachFunnelEnabled: ADMIN_COACH_FUNNEL_FLAG,
           },
         });
       } catch (loadError) {
@@ -121,6 +149,36 @@ export function ReportsWorkbench() {
           </ul>
         ) : null}
       </article>
+
+      {ADMIN_COACH_FUNNEL_FLAG ? (
+        <article className="mvp-card">
+          <h2>Admin Coach Funnel Radar</h2>
+          {coachFunnel ? (
+            <>
+              <p className="mvp-muted">
+                generatedAt: {coachFunnel.generatedAt} · attach rate: {coachFunnel.homeworkAttachRatePct.toFixed(1)}% ·
+                completion rate: {coachFunnel.homeworkCompletionRatePct.toFixed(1)}%
+              </p>
+              <ul className="mvp-report-list">
+                {coachFunnel.stages.map((stage) => (
+                  <li key={stage.key}>
+                    <div className="mvp-report-list__title">
+                      <strong>{stage.label}</strong>
+                      <span>{stage.sessions} sessions</span>
+                    </div>
+                    <p>conversion from previous stage: {stage.conversionPctFromPrev.toFixed(1)}%</p>
+                    {coachFunnel.biggestDropStageKey === stage.key ? (
+                      <p className="module-error-text">Largest drop-off stage: prioritize intervention here.</p>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            <p className="mvp-muted">No coach funnel data loaded.</p>
+          )}
+        </article>
+      ) : null}
 
       {error ? <p className="module-error-text">{error}</p> : null}
     </section>

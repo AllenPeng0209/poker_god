@@ -25,6 +25,8 @@ from .schemas import (
     CoachCreateDrillRequest,
     CoachCreatePlanRequest,
     CoachCreatePlanResponse,
+    CoachFunnelStageMetric,
+    CoachFunnelSummaryResponse,
     CoachSection,
     Drill,
     DrillCreateRequest,
@@ -2000,6 +2002,73 @@ def ingest_events(supabase: Client, events: list[dict[str, Any]]) -> int:
         )
     supabase.table("pg_mvp_events").insert(rows).execute()
     return len(rows)
+
+
+def coach_funnel_summary(supabase: Client, window_days: int) -> CoachFunnelSummaryResponse:
+    parsed_window = 7 if window_days == 7 else 90 if window_days == 90 else 30
+    cutoff = datetime.now(UTC) - timedelta(days=parsed_window)
+    rows = (
+        supabase.table("pg_mvp_events")
+        .select("event_name, session_id, event_time")
+        .gte("event_time", cutoff.isoformat())
+        .in_("event_name", ["coach_message_sent", "coach_action_executed", "drill_started", "drill_completed"])
+        .execute()
+        .data
+        or []
+    )
+
+    stage_order = ["coach_message_sent", "coach_action_executed", "drill_started", "drill_completed"]
+    stage_labels = {
+        "coach_message_sent": "Coach message sessions",
+        "coach_action_executed": "Coach action executed",
+        "drill_started": "Homework drill started",
+        "drill_completed": "Homework drill completed",
+    }
+
+    stage_sessions: dict[str, set[str]] = {key: set() for key in stage_order}
+    for row in rows:
+        key = str(row.get("event_name") or "").strip()
+        session_id = str(row.get("session_id") or "").strip()
+        if key in stage_sessions and session_id:
+            stage_sessions[key].add(session_id)
+
+    metrics: list[CoachFunnelStageMetric] = []
+    previous_count = 0
+    biggest_drop_key: str | None = None
+    biggest_drop = 0.0
+    for key in stage_order:
+        count = len(stage_sessions[key])
+        conversion = 100.0 if previous_count == 0 else round((count / max(previous_count, 1)) * 100.0, 1)
+        if previous_count > 0:
+            drop = 100.0 - conversion
+            if drop > biggest_drop:
+                biggest_drop = drop
+                biggest_drop_key = key
+        metrics.append(
+            CoachFunnelStageMetric(
+                key=key,  # type: ignore[arg-type]
+                label=stage_labels[key],
+                sessions=count,
+                conversionPctFromPrev=conversion,
+            ),
+        )
+        previous_count = count
+
+    base_coach_sessions = len(stage_sessions["coach_message_sent"])
+    attach_sessions = len(stage_sessions["drill_started"])
+    complete_sessions = len(stage_sessions["drill_completed"])
+    attach_rate = round((attach_sessions / max(base_coach_sessions, 1)) * 100.0, 1)
+    completion_rate = round((complete_sessions / max(attach_sessions, 1)) * 100.0, 1)
+
+    return CoachFunnelSummaryResponse(
+        requestId=request_id(),
+        windowDays=parsed_window,  # type: ignore[arg-type]
+        generatedAt=now_iso(),
+        stages=metrics,
+        homeworkAttachRatePct=attach_rate,
+        homeworkCompletionRatePct=completion_rate,
+        biggestDropStageKey=biggest_drop_key,
+    )
 
 
 def _build_chat_messages(payload: ZenChatRequest, content: str) -> list[dict[str, str]]:

@@ -30,6 +30,21 @@ type ApiErrorResponse = {
   requestId?: string;
 };
 
+export type CoachFunnelSummaryResponse = {
+  requestId: string;
+  windowDays: 7 | 30 | 90;
+  generatedAt: string;
+  stages: Array<{
+    key: 'coach_message_sent' | 'coach_action_executed' | 'drill_started' | 'drill_completed';
+    label: string;
+    sessions: number;
+    conversionPctFromPrev: number;
+  }>;
+  homeworkAttachRatePct: number;
+  homeworkCompletionRatePct: number;
+  biggestDropStageKey?: string | null;
+};
+
 const DEFAULT_API_BASE = 'http://localhost:3001';
 const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL ?? DEFAULT_API_BASE).replace(/\/+$/, '');
 const PUBLIC_API_KEY = (process.env.NEXT_PUBLIC_API_KEY ?? '').trim();
@@ -154,6 +169,10 @@ export const apiClient = {
 
   async getLeakReport(windowDays: 7 | 30 | 90): Promise<LeakReportResponse> {
     return requestJson<LeakReportResponse>(`/api/reports/leaks?windowDays=${windowDays}`);
+  },
+
+  async getCoachFunnelSummary(windowDays: 7 | 30 | 90): Promise<CoachFunnelSummaryResponse> {
+    return requestJson<CoachFunnelSummaryResponse>(`/api/admin/coach/funnel?windowDays=${windowDays}`);
   },
 
   async zenChat(input: ZenChatRequest): Promise<ZenChatResponse> {
