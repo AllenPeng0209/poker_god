@@ -11,6 +11,9 @@ import type {
   CoachCreateDrillRequest,
   CoachCreatePlanRequest,
   CoachCreatePlanResponse,
+  CoachHomeworkFunnelResponse,
+  CoachHomeworkRequest,
+  CoachHomeworkResponse,
   DrillCreateRequest,
   DrillCreateResponse,
   DrillListResponse,
@@ -28,6 +31,8 @@ import type {
 import { trainingZones } from '@poker-god/domain-poker/data/zones';
 import {
   buildLeakReport,
+  buildCoachHomework,
+  buildCoachHomeworkFunnel,
   coachChat,
   coachCreateDrillAction,
   coachCreatePlanAction,
@@ -326,6 +331,33 @@ app.post<{ Body: CoachCreatePlanRequest }>(
     }
 
     return result;
+  },
+);
+
+app.post<{ Body: CoachHomeworkRequest }>(
+  '/api/coach/homework',
+  async (
+    request,
+    reply,
+  ): Promise<CoachHomeworkResponse | ErrorBody> => {
+    const id = requestId();
+    const body = request.body;
+    if (!body || typeof body.conversationId !== 'string' || typeof body.module !== 'string') {
+      return badRequest(reply, id, 'invalid_body', 'conversationId and module are required');
+    }
+
+    return buildCoachHomework(id, body);
+  },
+);
+
+app.get<{ Querystring: { windowDays?: string } }>(
+  '/api/admin/coach/homework-funnel',
+  async (
+    request,
+  ): Promise<CoachHomeworkFunnelResponse> => {
+    const windowDays = Number(request.query.windowDays);
+    const parsedWindow = windowDays === 7 || windowDays === 14 ? windowDays : 30;
+    return buildCoachHomeworkFunnel(requestId(), parsedWindow);
   },
 );
 

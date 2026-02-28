@@ -356,6 +356,53 @@ export interface CoachCreatePlanResponse {
   plan: WeeklyPlan;
 }
 
+export interface CoachHomeworkRequest {
+  conversationId: string;
+  module: CoachModule;
+}
+
+export interface CoachHomeworkItem {
+  id: string;
+  title: string;
+  objective: string;
+  estimatedMinutes: number;
+  source: 'practice' | 'analyze' | 'coach';
+  metric: {
+    name: 'scorePct' | 'evLossBb100' | 'frequencyGapPct' | 'studyDays';
+    baseline: number;
+    target: number;
+  };
+}
+
+export interface CoachHomeworkResponse {
+  requestId: string;
+  conversationId: string;
+  generatedAt: string;
+  items: CoachHomeworkItem[];
+}
+
+export interface CoachHomeworkFunnelSummary {
+  windowDays: 7 | 14 | 30;
+  generatedPacks: number;
+  homeworkStarts: number;
+  homeworkCompletions: number;
+  completionRatePct: number;
+  drillConversionRatePct: number;
+  avgTasksPerPack: number;
+  generatedAt: string;
+}
+
+export interface CoachHomeworkFunnelModuleItem {
+  module: CoachModule;
+  generatedPacks: number;
+}
+
+export interface CoachHomeworkFunnelResponse {
+  requestId: string;
+  summary: CoachHomeworkFunnelSummary;
+  modules: CoachHomeworkFunnelModuleItem[];
+}
+
 export type AnalyticsEventName =
   | 'study_node_opened'
   | 'drill_started'
@@ -363,7 +410,10 @@ export type AnalyticsEventName =
   | 'hand_uploaded'
   | 'report_opened'
   | 'coach_message_sent'
-  | 'coach_action_executed';
+  | 'coach_action_executed'
+  | 'coach_homework_generated'
+  | 'coach_homework_started'
+  | 'coach_homework_completed';
 
 export interface AnalyticsEvent {
   eventName: AnalyticsEventName;

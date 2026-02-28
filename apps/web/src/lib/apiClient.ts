@@ -9,6 +9,9 @@ import type {
   CoachCreateDrillRequest,
   CoachCreatePlanRequest,
   CoachCreatePlanResponse,
+  CoachHomeworkFunnelResponse,
+  CoachHomeworkRequest,
+  CoachHomeworkResponse,
   DrillCreateRequest,
   DrillCreateResponse,
   DrillListResponse,
@@ -182,6 +185,17 @@ export const apiClient = {
       method: 'POST',
       body: JSON.stringify(input),
     });
+  },
+
+  async coachHomework(input: CoachHomeworkRequest): Promise<CoachHomeworkResponse> {
+    return requestJson<CoachHomeworkResponse>('/api/coach/homework', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  },
+
+  async getCoachHomeworkFunnel(windowDays: 7 | 14 | 30): Promise<CoachHomeworkFunnelResponse> {
+    return requestJson<CoachHomeworkFunnelResponse>(`/api/admin/coach/homework-funnel?windowDays=${windowDays}`);
   },
 
   async ingestEvents(events: AnalyticsEvent[]): Promise<AnalyticsIngestResponse> {

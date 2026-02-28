@@ -26,6 +26,15 @@ export function ReportsWorkbench() {
       relatedTag: string;
     }>
   >([]);
+  const [funnel, setFunnel] = useState<{
+    generatedPacks: number;
+    homeworkStarts: number;
+    homeworkCompletions: number;
+    completionRatePct: number;
+    drillConversionRatePct: number;
+    avgTasksPerPack: number;
+    windowDays: 7 | 14 | 30;
+  } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -33,16 +42,22 @@ export function ReportsWorkbench() {
       setLoading(true);
       setError(null);
       try {
-        const response = await apiClient.getLeakReport(windowDays);
+        const [response, funnelResponse] = await Promise.all([
+          apiClient.getLeakReport(windowDays),
+          apiClient.getCoachHomeworkFunnel(windowDays === 90 ? 30 : windowDays === 30 ? 30 : 7),
+        ]);
         if (cancelled) return;
         setItems(response.items);
         setGeneratedAt(response.generatedAt);
+        setFunnel(funnelResponse.summary);
         trackEvent('report_opened', {
           module: 'reports',
           requestId: response.requestId,
           payload: {
             windowDays,
             itemCount: response.items.length,
+            homeworkGeneratedPacks: funnelResponse.summary.generatedPacks,
+            homeworkCompletionRate: funnelResponse.summary.completionRatePct,
           },
         });
       } catch (loadError) {
@@ -89,6 +104,39 @@ export function ReportsWorkbench() {
           </label>
           <span className="mvp-muted">{t('reports.generatedAt', { value: generatedAt || '-' })}</span>
         </div>
+      </article>
+
+      <article className="mvp-card">
+        <h2>Coach Homework Funnel</h2>
+        {!funnel ? <p className="mvp-muted">Loading funnel metrics…</p> : null}
+        {funnel ? (
+          <div className="mvp-kpi-grid">
+            <div>
+              <span>Generated packs</span>
+              <strong>{funnel.generatedPacks}</strong>
+            </div>
+            <div>
+              <span>Starts</span>
+              <strong>{funnel.homeworkStarts}</strong>
+            </div>
+            <div>
+              <span>Completions</span>
+              <strong>{funnel.homeworkCompletions}</strong>
+            </div>
+            <div>
+              <span>Completion rate</span>
+              <strong>{funnel.completionRatePct}%</strong>
+            </div>
+            <div>
+              <span>Drill conversion</span>
+              <strong>{funnel.drillConversionRatePct}%</strong>
+            </div>
+            <div>
+              <span>Avg tasks / pack</span>
+              <strong>{funnel.avgTasksPerPack}</strong>
+            </div>
+          </div>
+        ) : null}
       </article>
 
       <article className="mvp-card">

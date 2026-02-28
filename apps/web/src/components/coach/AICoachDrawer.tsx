@@ -1,6 +1,6 @@
 'use client';
 
-import type { CoachModule, ZenChatMessage, ZenChatResponse } from '@poker-god/contracts';
+import type { CoachHomeworkResponse, CoachModule, ZenChatMessage, ZenChatResponse } from '@poker-god/contracts';
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { useI18n } from '@/components/i18n/I18nProvider';
 import { apiClient } from '@/lib/apiClient';
@@ -238,6 +238,10 @@ export function AICoachDrawer({ pathname, isOpen, width, onOpenChange, onWidthCh
   const [isLoading, setLoading] = useState(false);
   const [pendingIntent, setPendingIntent] = useState<StudyIntent | null>(null);
   const [contextEvent, setContextEvent] = useState<CoachContextEvent | null>(null);
+  const [homeworkPack, setHomeworkPack] = useState<CoachHomeworkResponse | null>(null);
+  const [homeworkStarted, setHomeworkStarted] = useState<Record<string, boolean>>({});
+  const [homeworkCompleted, setHomeworkCompleted] = useState<Record<string, boolean>>({});
+  const [isHomeworkLoading, setHomeworkLoading] = useState(false);
   const [conversationId] = useState(() => crypto.randomUUID());
   const resizeStartRef = useRef<{ x: number; width: number } | null>(null);
   const feedRef = useRef<HTMLElement | null>(null);
@@ -450,6 +454,67 @@ export function AICoachDrawer({ pathname, isOpen, width, onOpenChange, onWidthCh
     }
   }
 
+  async function handleGenerateHomework() {
+    if (!module || isHomeworkLoading) {
+      return;
+    }
+
+    setError(null);
+    setHomeworkLoading(true);
+    try {
+      const response = await apiClient.coachHomework({
+        conversationId,
+        module,
+      });
+      setHomeworkPack(response);
+      setHomeworkStarted({});
+      setHomeworkCompleted({});
+      trackEvent('coach_homework_generated', {
+        module: 'coach',
+        requestId: response.requestId,
+        payload: {
+          route: pathname,
+          coachModule: module,
+          homeworkItems: response.items.length,
+        },
+      });
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : t('coach.errors.requestFailed'));
+    } finally {
+      setHomeworkLoading(false);
+    }
+  }
+
+  function handleStartHomeworkItem(itemId: string) {
+    if (!module || homeworkStarted[itemId]) {
+      return;
+    }
+    setHomeworkStarted((prev) => ({ ...prev, [itemId]: true }));
+    trackEvent('coach_homework_started', {
+      module: 'coach',
+      payload: {
+        route: pathname,
+        coachModule: module,
+        itemId,
+      },
+    });
+  }
+
+  function handleCompleteHomeworkItem(itemId: string) {
+    if (!module || homeworkCompleted[itemId]) {
+      return;
+    }
+    setHomeworkCompleted((prev) => ({ ...prev, [itemId]: true }));
+    trackEvent('coach_homework_completed', {
+      module: 'coach',
+      payload: {
+        route: pathname,
+        coachModule: module,
+        itemId,
+      },
+    });
+  }
+
   if (!module) {
     return null;
   }
@@ -510,6 +575,38 @@ export function AICoachDrawer({ pathname, isOpen, width, onOpenChange, onWidthCh
                   {locale === 'zh-CN' ? '忽略' : 'Dismiss'}
                 </button>
               </div>
+            </div>
+          ) : null}
+
+          <div className="wizard-coach__suggestions">
+            <button type="button" className="wizard-coach__chip" onClick={() => void handleGenerateHomework()} disabled={isHomeworkLoading}>
+              {isHomeworkLoading ? (locale === 'zh-CN' ? '生成中…' : 'Generating…') : locale === 'zh-CN' ? '生成个性化作业' : 'Generate homework'}
+            </button>
+          </div>
+
+          {homeworkPack ? (
+            <div className="wizard-coach__intent">
+              <strong>{locale === 'zh-CN' ? '本次作业包' : 'Homework pack'}</strong>
+              <p>{new Date(homeworkPack.generatedAt).toLocaleString()}</p>
+              <ul className="mvp-report-list">
+                {homeworkPack.items.map((item) => (
+                  <li key={item.id}>
+                    <strong>{item.title}</strong>
+                    <p>{item.objective}</p>
+                    <p>
+                      KPI: {item.metric.name} {item.metric.baseline} → {item.metric.target} · {item.estimatedMinutes}m
+                    </p>
+                    <div className="wizard-coach__intent-actions">
+                      <button type="button" className="wizard-coach__chip" onClick={() => handleStartHomeworkItem(item.id)} disabled={Boolean(homeworkStarted[item.id])}>
+                        {homeworkStarted[item.id] ? (locale === 'zh-CN' ? '已开始' : 'Started') : locale === 'zh-CN' ? '开始' : 'Start'}
+                      </button>
+                      <button type="button" className="wizard-coach__chip" onClick={() => handleCompleteHomeworkItem(item.id)} disabled={!homeworkStarted[item.id] || Boolean(homeworkCompleted[item.id])}>
+                        {homeworkCompleted[item.id] ? (locale === 'zh-CN' ? '已完成' : 'Done') : locale === 'zh-CN' ? '标记完成' : 'Mark done'}
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
             </div>
           ) : null}
 
