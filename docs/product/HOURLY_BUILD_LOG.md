@@ -25,7 +25,8 @@
 - Add CI job in next iteration: `practice-failure-scenarios`.
 
 ### Push result
-- Pending (to run): `git push -u origin pg/hourly-20260228-1845-failure-scenario-validation`
+- `git push -u origin pg/hourly-20260228-1845-failure-scenario-validation` ✅
+- PR URL: https://github.com/AllenPeng0209/poker_god/pull/new/pg/hourly-20260228-1845-failure-scenario-validation
 
 ### Blockers
 - None for local implementation.
