@@ -11,6 +11,8 @@ import type {
   CoachCreateDrillRequest,
   CoachCreatePlanRequest,
   CoachCreatePlanResponse,
+  CoachHomeworkRequest,
+  CoachHomeworkResponse,
   DrillCreateRequest,
   DrillCreateResponse,
   DrillListResponse,
@@ -31,6 +33,7 @@ import {
   coachChat,
   coachCreateDrillAction,
   coachCreatePlanAction,
+  buildCoachHomework,
   completePracticeSession,
   createAnalyzeUpload,
   createDrill,
@@ -326,6 +329,22 @@ app.post<{ Body: CoachCreatePlanRequest }>(
     }
 
     return result;
+  },
+);
+
+app.post<{ Body: CoachHomeworkRequest }>(
+  '/api/coach/homework',
+  async (
+    request,
+    reply,
+  ): Promise<CoachHomeworkResponse | ErrorBody> => {
+    const id = requestId();
+    const body = request.body;
+    if (!body || typeof body.conversationId !== 'string' || typeof body.module !== 'string') {
+      return badRequest(reply, id, 'invalid_body', 'conversationId and module are required');
+    }
+
+    return buildCoachHomework(id, body);
   },
 );
 

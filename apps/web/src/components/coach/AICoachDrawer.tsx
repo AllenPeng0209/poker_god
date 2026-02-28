@@ -1,6 +1,6 @@
 'use client';
 
-import type { CoachModule, ZenChatMessage, ZenChatResponse } from '@poker-god/contracts';
+import type { CoachHomeworkResponse, CoachModule, ZenChatMessage, ZenChatResponse } from '@poker-god/contracts';
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { useI18n } from '@/components/i18n/I18nProvider';
 import { apiClient } from '@/lib/apiClient';
@@ -218,6 +218,17 @@ function toZenHistory(messages: ChatMessage[]): ZenChatMessage[] {
     }));
 }
 
+function formatHomeworkMessage(response: CoachHomeworkResponse, locale: string) {
+  const lines = response.items.map(
+    (item, index) =>
+      `${index + 1}. ${item.title} (${item.estimatedMinutes}m)\n- ${item.objective}\n- KPI: ${item.metric.name} ${item.metric.baseline} → ${item.metric.target}`,
+  );
+  if (locale === 'zh-CN') {
+    return `已生成个性化作业包：\n${lines.join('\n')}`;
+  }
+  return `Generated personalized homework pack:\n${lines.join('\n')}`;
+}
+
 type AICoachDrawerProps = {
   pathname: string;
   isOpen: boolean;
@@ -236,6 +247,7 @@ export function AICoachDrawer({ pathname, isOpen, width, onOpenChange, onWidthCh
   const [provider, setProvider] = useState<ZenChatResponse['provider']>('heuristic');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setLoading] = useState(false);
+  const [isHomeworkLoading, setHomeworkLoading] = useState(false);
   const [pendingIntent, setPendingIntent] = useState<StudyIntent | null>(null);
   const [contextEvent, setContextEvent] = useState<CoachContextEvent | null>(null);
   const [conversationId] = useState(() => crypto.randomUUID());
@@ -450,6 +462,43 @@ export function AICoachDrawer({ pathname, isOpen, width, onOpenChange, onWidthCh
     }
   }
 
+  async function handleGenerateHomework() {
+    if (!module || isHomeworkLoading) {
+      return;
+    }
+
+    setError(null);
+    setHomeworkLoading(true);
+    try {
+      const response = await apiClient.coachHomework({
+        conversationId,
+        module,
+      });
+      setMessages((prev) => [
+        ...prev.slice(-40),
+        {
+          id: crypto.randomUUID(),
+          role: 'system',
+          content: formatHomeworkMessage(response, locale),
+          createdAt: response.generatedAt,
+        },
+      ]);
+      trackEvent('coach_action_executed', {
+        module: 'coach',
+        payload: {
+          route: pathname,
+          coachModule: module,
+          action: 'generate_homework',
+          homeworkItems: response.items.length,
+        },
+      });
+    } catch (homeworkError) {
+      setError(homeworkError instanceof Error ? homeworkError.message : t('coach.errors.requestFailed'));
+    } finally {
+      setHomeworkLoading(false);
+    }
+  }
+
   if (!module) {
     return null;
   }
@@ -522,6 +571,12 @@ export function AICoachDrawer({ pathname, isOpen, width, onOpenChange, onWidthCh
               ))}
             </div>
           ) : null}
+
+          <div className="wizard-coach__suggestions">
+            <button type="button" className="wizard-coach__chip" onClick={() => void handleGenerateHomework()} disabled={isHomeworkLoading}>
+              {isHomeworkLoading ? (locale === 'zh-CN' ? '生成中…' : 'Generating…') : locale === 'zh-CN' ? '生成个性化作业' : 'Generate Homework'}
+            </button>
+          </div>
 
           {error ? <p className="module-error-text wizard-coach__error">{error}</p> : null}
 

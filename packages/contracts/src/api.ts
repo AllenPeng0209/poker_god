@@ -356,6 +356,31 @@ export interface CoachCreatePlanResponse {
   plan: WeeklyPlan;
 }
 
+export interface CoachHomeworkRequest {
+  conversationId: string;
+  module: CoachModule;
+}
+
+export interface CoachHomeworkItem {
+  id: string;
+  title: string;
+  objective: string;
+  estimatedMinutes: number;
+  source: 'practice' | 'analyze' | 'coach';
+  metric: {
+    name: 'scorePct' | 'evLossBb100' | 'frequencyGapPct' | 'studyDays';
+    baseline: number;
+    target: number;
+  };
+}
+
+export interface CoachHomeworkResponse {
+  requestId: string;
+  conversationId: string;
+  generatedAt: string;
+  items: CoachHomeworkItem[];
+}
+
 export type AnalyticsEventName =
   | 'study_node_opened'
   | 'drill_started'

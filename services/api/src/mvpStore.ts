@@ -12,6 +12,9 @@ import type {
   CoachChatResponse,
   CoachCreatePlanRequest,
   CoachCreatePlanResponse,
+  CoachHomeworkRequest,
+  CoachHomeworkResponse,
+  CoachHomeworkItem,
   Drill,
   DrillCreateRequest,
   DrillCreateResponse,
@@ -629,6 +632,84 @@ export function coachCreatePlanAction(
   return {
     requestId,
     plan,
+  };
+}
+
+export function buildCoachHomework(requestId: string, input: CoachHomeworkRequest): CoachHomeworkResponse {
+  const completedSessions = Array.from(practiceSessions.values())
+    .map((record) => record.session)
+    .filter((session) => session.status === 'completed');
+
+  const latestSession = completedSessions.sort((left, right) => right.startedAt.localeCompare(left.startedAt))[0];
+  const recentHands = Array.from(analyzeUploads.values())
+    .flatMap((record) => record.hands)
+    .sort((left, right) => right.playedAt.localeCompare(left.playedAt));
+
+  const avgRecentEvLoss = recentHands.length
+    ? Number((recentHands.slice(0, 20).reduce((acc, hand) => acc + hand.evLossBb100, 0) / Math.min(recentHands.length, 20)).toFixed(1))
+    : 9.8;
+
+  const averageScore = completedSessions.length
+    ? Math.round(
+        completedSessions.reduce((acc, session) => {
+          const record = practiceSessions.get(session.id);
+          if (!record || record.answers.length === 0) {
+            return acc;
+          }
+          const correct = record.answers.filter((answer) => answer.feedback.correct).length;
+          return acc + Math.round((correct / record.answers.length) * 100);
+        }, 0) / completedSessions.length,
+      )
+    : 62;
+
+  const highIntentCoachTouches = analyticsEvents.filter(
+    (event) => event.eventName === 'coach_action_executed' || event.eventName === 'drill_completed',
+  ).length;
+
+  const items: CoachHomeworkItem[] = [
+    {
+      id: newId(),
+      title: 'Leak 修复冲刺（高 EV loss）',
+      objective: `从 Analyze 里挑选最近 8 手 EV loss 最高的牌局，逐手写出 baseline line 与触发条件。当前均值 ${avgRecentEvLoss} bb/100。`,
+      estimatedMinutes: 18,
+      source: 'analyze',
+      metric: {
+        name: 'evLossBb100',
+        baseline: avgRecentEvLoss,
+        target: Number(Math.max(2, avgRecentEvLoss - 1.8).toFixed(1)),
+      },
+    },
+    {
+      id: newId(),
+      title: '决策稳定性 Drill',
+      objective: `完成 1 组 ${latestSession?.totalItems ?? 20} 题 Drill，目标把错误集中在同一类情境并记录 3 条修正规则。`,
+      estimatedMinutes: 14,
+      source: 'practice',
+      metric: {
+        name: 'scorePct',
+        baseline: averageScore,
+        target: Math.min(95, averageScore + 8),
+      },
+    },
+    {
+      id: newId(),
+      title: 'Coach 复盘闭环',
+      objective: `完成训练后向 AI Coach 提交 1 次复盘，输出下次开练前要复查的 2 个触发词（已累计闭环 ${highIntentCoachTouches} 次）。`,
+      estimatedMinutes: 8,
+      source: 'coach',
+      metric: {
+        name: 'studyDays',
+        baseline: Math.max(1, Math.floor(highIntentCoachTouches / 2)),
+        target: Math.max(3, Math.floor(highIntentCoachTouches / 2) + 1),
+      },
+    },
+  ];
+
+  return {
+    requestId,
+    conversationId: input.conversationId,
+    generatedAt: nowIso(),
+    items,
   };
 }
 
