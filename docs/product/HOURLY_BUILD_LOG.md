@@ -24,6 +24,6 @@
 - Feature flag / rollout:
   - `NEXT_PUBLIC_ADMIN_COACH_CAMPAIGN_LAUNCH_V1=1` enables web admin launch entry.
   - default OFF, enable for ops admins only.
-- Push result: pending
+- Push result: success (`git push -u origin pg/hourly-20260302-0532-admin-campaign-launch-api`)
 - Blockers: none
 - Next action: mobile follow-up for campaign launch/read-only execution status in `apps/mobile`.
