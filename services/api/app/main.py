@@ -23,6 +23,9 @@ from .schemas import (
     CoachCreateDrillRequest,
     CoachCreatePlanRequest,
     CoachCreatePlanResponse,
+    CoachHomeworkCreateRequest,
+    CoachHomeworkResponse,
+    CoachHomeworkStatusUpdateRequest,
     DrillCreateRequest,
     DrillCreateResponse,
     DrillListResponse,
@@ -46,6 +49,8 @@ from .services import (
     coach_chat,
     coach_create_drill_action,
     coach_create_plan_action,
+    create_coach_homework,
+    get_coach_homework,
     complete_practice_session,
     create_analyze_upload,
     create_drill,
@@ -56,6 +61,7 @@ from .services import (
     list_study_spots,
     list_analyze_hands,
     list_drills,
+    update_coach_homework_status,
     process_analyze_upload,
     request_id,
     start_practice_session,
@@ -421,6 +427,35 @@ def coach_create_plan(payload: CoachCreatePlanRequest) -> CoachCreatePlanRespons
     result = coach_create_plan_action(supabase, payload)
     if isinstance(result, str):
         return _error(409, "confirmation_required", result)
+    return result
+
+
+@app.post("/api/coach/homeworks", response_model=CoachHomeworkResponse)
+def coach_create_homework(payload: CoachHomeworkCreateRequest) -> CoachHomeworkResponse:
+    supabase = get_supabase_client()
+    return create_coach_homework(supabase, payload)
+
+
+@app.get("/api/coach/homeworks/{homework_id}", response_model=CoachHomeworkResponse)
+def coach_get_homework(homework_id: str) -> CoachHomeworkResponse | JSONResponse:
+    supabase = get_supabase_client()
+    result = get_coach_homework(supabase, homework_id)
+    if not result:
+        return _error(404, "homework_not_found", f"homework {homework_id} not found")
+    return result
+
+
+@app.patch("/api/coach/homeworks/{homework_id}/status", response_model=CoachHomeworkResponse)
+def coach_update_homework_status(
+    homework_id: str,
+    payload: CoachHomeworkStatusUpdateRequest,
+) -> CoachHomeworkResponse | JSONResponse:
+    supabase = get_supabase_client()
+    result = update_coach_homework_status(supabase, homework_id, payload)
+    if result is None:
+        return _error(404, "homework_not_found", f"homework {homework_id} not found")
+    if isinstance(result, str):
+        return _error(409, "invalid_status_transition", result)
     return result
 
 
