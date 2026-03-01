@@ -1,0 +1,53 @@
+# HOURLY_BUILD_LOG
+
+## 2026-03-02 00:23 (Asia/Shanghai) — pg/hourly-20260302-0023-mistakes-summary-api
+- Picked PRD backlog item: **US-001 / 提供 mistakes summary API**.
+- Highest-impact optimization: add backend source-of-truth API for leak-cluster prioritization so coach homework generation can directly consume ranked mistake clusters.
+- Explicit cross-track coverage: backend implemented now; admin/mobile integration tracked as next step in master table.
+- Changed files:
+  - `services/api/app/main.py`
+  - `services/api/app/services.py`
+  - `services/api/app/schemas.py`
+  - `services/api/tests/test_mistakes_summary.py`
+  - `docs/product/2026-03-02-coach-mistakes-summary-api.md`
+  - `docs/product/COMMERCIALIZATION_MASTER_TABLE.md`
+  - `docs/product/HOURLY_BUILD_LOG.md`
+  - `tasks/prd-poker-god-hourly-commercialization.md`
+- Validation:
+  - `PYTHONPATH=services/api python3 -m unittest -q services/api/tests/test_mistakes_summary.py`
+  - `python3 -m py_compile services/api/app/main.py services/api/app/services.py services/api/app/schemas.py`
+- Rollout / feature flag:
+  - Backend API is available immediately.
+  - Admin/Mobile UI consumers will be gated in follow-up by feature flags.
+- Migration notes:
+  - No schema migration this run (reuse Supabase `pg_mvp_analyzed_hands`).
+  - If query load grows, add composite index on (`played_at`, `tags`) in a Supabase migration.
+- Push result: pending at log time.
+- Blockers: none.
+- Next action: add admin/mobile cards that consume `/api/coach/mistakes/summary` and map to one-click homework campaign generation.
+
+## 2026-03-02 01:24 (Asia/Shanghai) — pg/hourly-20260302-0124-homework-traceability
+- Picked PRD backlog item: **US-001 / 作业生成可追溯到漏点cluster**.
+- Highest-impact optimization: persist homework lineage from mistake cluster into backend source-of-truth so operators can explain and optimize campaign outcomes.
+- Explicit cross-track coverage: backend implemented this run; admin/mobile traceability rendering tracked as next step.
+- Changed files:
+  - `services/api/app/schemas.py`
+  - `services/api/app/services.py`
+  - `services/api/sql/0004_pg_mvp_drills_traceability.sql`
+  - `services/api/tests/test_coach_homework_traceability.py`
+  - `docs/product/2026-03-02-homework-traceability-from-mistake-clusters.md`
+  - `docs/product/COMMERCIALIZATION_MASTER_TABLE.md`
+  - `docs/product/HOURLY_BUILD_LOG.md`
+  - `tasks/prd-poker-god-hourly-commercialization.md`
+- Validation:
+  - `PYTHONPATH=services/api python3 -m unittest -q services/api/tests/test_coach_homework_traceability.py`
+  - `PYTHONPATH=services/api python3 -m unittest -q services/api/tests/test_mistakes_summary.py`
+  - `python3 -m py_compile services/api/app/main.py services/api/app/services.py services/api/app/schemas.py`
+- Rollout / feature flag:
+  - Backend is backward-compatible (new request/response fields optional).
+  - Web/mobile traceability UI to be gated by `NEXT_PUBLIC_ADMIN_HOMEWORK_TRACEABILITY_V1` and `EXPO_PUBLIC_MOBILE_HOMEWORK_TRACEABILITY_V1` in follow-up.
+- Migration notes:
+  - Apply `services/api/sql/0004_pg_mvp_drills_traceability.sql` on Supabase before relying on persisted lineage in production.
+- Push result: pending at log time.
+- Blockers: none.
+- Next action: wire traceability badges and filters into admin/mobile campaign views, then connect to attribution dashboard for ROI postmortems.

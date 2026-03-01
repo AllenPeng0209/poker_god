@@ -155,12 +155,20 @@ class DrillItem(BaseModel):
     frequencyGapPct: float
 
 
+class DrillTraceability(BaseModel):
+    mistakeCluster: str
+    sourceWindowDays: Literal[7, 30, 90]
+    sourceSampleSize: int
+    sourceTotalEvLossBb100: float
+
+
 class Drill(BaseModel):
     id: str
     title: str
     sourceType: SourceType
     sourceRefId: str | None = None
     tags: list[str] = []
+    traceability: DrillTraceability | None = None
     itemCount: int
     createdAt: str
     items: list[DrillItem] = []
@@ -358,6 +366,10 @@ class CoachCreateDrillRequest(BaseModel):
     title: str
     itemCount: int = Field(ge=1, le=500)
     sourceRefId: str | None = None
+    mistakeCluster: str | None = None
+    sourceWindowDays: Literal[7, 30, 90] | None = None
+    sourceSampleSize: int | None = Field(default=None, ge=0)
+    sourceTotalEvLossBb100: float | None = None
     confirm: bool | None = None
 
 

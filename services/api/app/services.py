@@ -569,12 +569,25 @@ def _build_default_drill_items(count: int) -> list[dict[str, Any]]:
 
 def _drill_from_rows(drill_row: dict[str, Any], item_rows: list[dict[str, Any]]) -> Drill:
     item_rows_sorted = sorted(item_rows, key=lambda row: _safe_int(row.get("sort_index")))
+    traceability = None
+    if drill_row.get("mistake_cluster"):
+        source_window_days = _safe_int(drill_row.get("source_window_days"), 30)
+        if source_window_days not in {7, 30, 90}:
+            source_window_days = 30
+        traceability = {
+            "mistakeCluster": str(drill_row.get("mistake_cluster")),
+            "sourceWindowDays": source_window_days,
+            "sourceSampleSize": _safe_int(drill_row.get("source_sample_size")),
+            "sourceTotalEvLossBb100": round(_safe_float(drill_row.get("source_total_ev_loss_bb100")), 1),
+        }
+
     return Drill(
         id=str(drill_row["id"]),
         title=str(drill_row["title"]),
         sourceType=str(drill_row["source_type"]),  # type: ignore[arg-type]
         sourceRefId=drill_row.get("source_ref_id"),
         tags=list(drill_row.get("tags") or []),
+        traceability=traceability,
         itemCount=_safe_int(drill_row.get("item_count")),
         createdAt=str(drill_row.get("created_at")),
         items=[
@@ -1934,15 +1947,37 @@ def coach_create_drill_action(supabase: Client, payload: CoachCreateDrillRequest
     if payload.itemCount > 100 and not payload.confirm:
         return "该动作将生成超过 100 题，需要二次确认。"
 
-    return create_drill(
-        supabase,
-        DrillCreateRequest(
-            title=payload.title or f"Coach Drill {payload.conversationId[:6]}",
-            sourceType="coach",
-            sourceRefId=payload.sourceRefId or payload.conversationId,
-            itemCount=payload.itemCount,
-        ),
-    )
+    drill_insert = {
+        "title": payload.title.strip() if payload.title.strip() else f"Coach Drill {payload.conversationId[:6]}",
+        "source_type": "coach",
+        "source_ref_id": payload.sourceRefId or payload.conversationId,
+        "tags": [f"mistake_cluster:{payload.mistakeCluster}"] if payload.mistakeCluster else [],
+        "item_count": payload.itemCount,
+        "mistake_cluster": payload.mistakeCluster,
+        "source_window_days": payload.sourceWindowDays,
+        "source_sample_size": payload.sourceSampleSize,
+        "source_total_ev_loss_bb100": payload.sourceTotalEvLossBb100,
+    }
+
+    drill_row = supabase.table("pg_mvp_drills").insert(drill_insert).execute().data[0]
+
+    base_items = _build_default_drill_items(payload.itemCount)
+    item_rows = [
+        {
+            "id": item["id"],
+            "drill_id": drill_row["id"],
+            "sort_index": item["sort_index"],
+            "prompt": item["prompt"],
+            "options": item["options"],
+            "recommended_action": item["recommended_action"],
+            "ev_loss_bb100": item["ev_loss_bb100"],
+            "frequency_gap_pct": item["frequency_gap_pct"],
+        }
+        for item in base_items
+    ]
+    created_items = supabase.table("pg_mvp_drill_items").insert(item_rows).execute().data or []
+    drill = _drill_from_rows(drill_row, created_items)
+    return DrillCreateResponse(requestId=request_id(), drill=drill)
 
 
 def coach_create_plan_action(supabase: Client, payload: CoachCreatePlanRequest) -> CoachCreatePlanResponse | str:
