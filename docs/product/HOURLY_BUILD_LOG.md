@@ -21,7 +21,7 @@
 - Kill switch: disable mobile flag
 
 ### Push result
-- pending
+- success: `git push -u origin pg/hourly-20260301-1705-mobile-campaign-reco`
 
 ### Blockers
 - none in local compile path
