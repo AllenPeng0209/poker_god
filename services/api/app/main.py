@@ -7,6 +7,7 @@ from threading import Lock
 from time import perf_counter
 
 from fastapi import BackgroundTasks, FastAPI, Query, Request, Response
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -208,6 +209,19 @@ TRAINING_ZONES = [
     TrainingZone(id="pro", key="pro", label="高手区"),
     TrainingZone(id="legend", key="legend", label="大神区"),
 ]
+
+
+@app.exception_handler(RequestValidationError)
+def request_validation_error_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+    rid = _request_id_from_request(request)
+    first_error = exc.errors()[0] if exc.errors() else None
+    if isinstance(first_error, dict):
+        location = ".".join(str(part) for part in first_error.get("loc", []))
+        detail = str(first_error.get("msg") or "request payload validation failed")
+        message = f"{location}: {detail}" if location else detail
+    else:
+        message = "request payload validation failed"
+    return _error(422, "invalid_request_payload", message, rid)
 
 
 @app.exception_handler(RuntimeError)
