@@ -1,8 +1,30 @@
-import React from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 type AppLanguage = 'zh-TW' | 'zh-CN' | 'en-US';
 type LanguageOption = { key: AppLanguage; label: string };
+
+type CampaignRecommendationItem = {
+  stageKey: 'coach_message_sent' | 'coach_action_executed' | 'drill_started';
+  stageLabel: string;
+  blockerSessions: number;
+  blockerRatePct: number;
+  expectedRecoveredSessions: number;
+  expectedAttachLiftPct: number;
+  recommendedCampaignType: 'nudge' | 'quick_drill' | 'recovery';
+  recommendedAction: string;
+};
+
+type CoachCampaignRecommendationsResponse = {
+  requestId: string;
+  windowDays: 7 | 30 | 90;
+  generatedAt: string;
+  baselineAttachRatePct: number;
+  projectedAttachRatePct: number;
+  projectedAttachLiftPct: number;
+  highestImpactStage: string;
+  items: CampaignRecommendationItem[];
+};
 
 type ProfileScreenProps = {
   language: AppLanguage;
@@ -47,6 +69,29 @@ function toggleLabel(language: AppLanguage, enabled: boolean): string {
   return l(language, '關閉', '关闭', 'Off');
 }
 
+const MOBILE_COACH_CAMPAIGN_RECO_FLAG = process.env.EXPO_PUBLIC_MOBILE_COACH_CAMPAIGN_RECO_V1 === '1';
+
+function apiBaseUrl(): string {
+  const raw = process.env.EXPO_PUBLIC_POKER_GOD_API_BASE_URL ?? 'http://localhost:3001';
+  return raw.replace(/\/+$/, '');
+}
+
+async function fetchCoachCampaignRecommendations(windowDays: 7 | 30 | 90): Promise<CoachCampaignRecommendationsResponse> {
+  const apiKey = (process.env.EXPO_PUBLIC_POKER_GOD_API_KEY ?? '').trim();
+  const response = await fetch(`${apiBaseUrl()}/api/admin/coach/campaign-recommendations?windowDays=${windowDays}`, {
+    headers: {
+      'Content-Type': 'application/json',
+      ...(apiKey ? { 'x-api-key': apiKey } : {}),
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`campaign_recommendations_fetch_failed_${response.status}`);
+  }
+
+  return response.json() as Promise<CoachCampaignRecommendationsResponse>;
+}
+
 export function ProfileScreen({
   language,
   profileName,
@@ -74,6 +119,31 @@ export function ProfileScreen({
   onTogglePoliteMode,
 }: ProfileScreenProps) {
   const wr = winRate(handsPlayed, handsWon);
+  const [windowDays, setWindowDays] = useState<7 | 30 | 90>(30);
+  const [campaignData, setCampaignData] = useState<CoachCampaignRecommendationsResponse | null>(null);
+  const [campaignLoading, setCampaignLoading] = useState(false);
+  const [campaignError, setCampaignError] = useState<string | null>(null);
+
+  const topItem = useMemo(() => campaignData?.items?.[0] ?? null, [campaignData]);
+
+  const loadCampaignRecommendations = useCallback(async () => {
+    if (!MOBILE_COACH_CAMPAIGN_RECO_FLAG) return;
+    setCampaignLoading(true);
+    setCampaignError(null);
+    try {
+      const result = await fetchCoachCampaignRecommendations(windowDays);
+      setCampaignData(result);
+    } catch (error) {
+      setCampaignData(null);
+      setCampaignError(error instanceof Error ? error.message : 'campaign_recommendations_unknown_error');
+    } finally {
+      setCampaignLoading(false);
+    }
+  }, [windowDays]);
+
+  useEffect(() => {
+    void loadCampaignRecommendations();
+  }, [loadCampaignRecommendations]);
 
   return (
     <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -149,6 +219,58 @@ export function ProfileScreen({
           <Text style={styles.actionBtnText}>{l(language, '管理訂閱', '管理订阅', 'Manage Subscription')}</Text>
         </Pressable>
       </View>
+
+      {MOBILE_COACH_CAMPAIGN_RECO_FLAG ? (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>{l(language, 'Campaign Recommendations (Mobile)', 'Campaign Recommendations (Mobile)', 'Campaign Recommendations (Mobile)')}</Text>
+          <Text style={styles.cardHint}>
+            {l(
+              language,
+              '行銷投放建議與預估提升（來源：/api/admin/coach/campaign-recommendations）',
+              '运营投放建议与预估提升（来源：/api/admin/coach/campaign-recommendations）',
+              'Operational campaign guidance and projected uplift (source: /api/admin/coach/campaign-recommendations)',
+            )}
+          </Text>
+          <View style={styles.chips}>
+            {[7, 30, 90].map((days) => {
+              const active = windowDays === days;
+              return (
+                <Pressable
+                  key={days}
+                  onPress={() => setWindowDays(days as 7 | 30 | 90)}
+                  style={({ pressed }) => [styles.chip, active && styles.chipOn, pressed && styles.pressed]}
+                >
+                  <Text style={[styles.chipText, active && styles.chipTextOn]}>{days}d</Text>
+                </Pressable>
+              );
+            })}
+            <Pressable onPress={() => { void loadCampaignRecommendations(); }} style={({ pressed }) => [styles.actionBtn, pressed && styles.pressed]}>
+              <Text style={styles.actionBtnText}>{l(language, '刷新', '刷新', 'Refresh')}</Text>
+            </Pressable>
+          </View>
+
+          {campaignLoading ? <Text style={styles.cardHint}>{l(language, '載入中…', '加载中…', 'Loading...')}</Text> : null}
+          {campaignError ? <Text style={styles.errorText}>{campaignError}</Text> : null}
+
+          {campaignData ? (
+            <>
+              <Text style={styles.cardHint}>{l(language, '基準 attach 率', '基准 attach 率', 'Baseline attach rate')}: {campaignData.baselineAttachRatePct.toFixed(1)}%</Text>
+              <Text style={styles.cardHint}>{l(language, '預估 attach 率', '预估 attach 率', 'Projected attach rate')}: {campaignData.projectedAttachRatePct.toFixed(1)}%</Text>
+              <Text style={styles.cardHint}>{l(language, '預估提升', '预估提升', 'Projected lift')}: +{campaignData.projectedAttachLiftPct.toFixed(1)}%</Text>
+              <Text style={styles.cardHint}>{l(language, '最高影響階段', '最高影响阶段', 'Highest impact stage')}: {campaignData.highestImpactStage}</Text>
+              {topItem ? (
+                <>
+                  <Text style={styles.leakLabel}>{topItem.stageLabel}</Text>
+                  <Text style={styles.cardHint}>{l(language, '阻塞會話', '阻塞会话', 'Blocked sessions')}: {topItem.blockerSessions}</Text>
+                  <Text style={styles.cardHint}>{l(language, '推薦動作', '推荐动作', 'Recommended action')}: {topItem.recommendedAction}</Text>
+                </>
+              ) : (
+                <Text style={styles.cardHint}>{l(language, '目前無建議項。', '当前无建议项。', 'No recommendations for now.')}</Text>
+              )}
+            </>
+          ) : null}
+        </View>
+      ) : null}
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>{l(language, '通用設定', '通用设置', 'General Settings')}</Text>
@@ -419,6 +541,11 @@ const styles = StyleSheet.create({
   chipTextOn: {
     color: '#f4fffb',
     fontWeight: '900',
+  },
+  errorText: {
+    color: '#ffb4b4',
+    fontSize: 12,
+    fontWeight: '700',
   },
   pressed: {
     opacity: 0.88,
