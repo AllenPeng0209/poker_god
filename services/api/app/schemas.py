@@ -318,6 +318,24 @@ class LeakReportResponse(BaseModel):
     items: list[LeakReportItem]
 
 
+class CoachConversionBlockerItem(BaseModel):
+    stage: str
+    sessions: int
+    dropoffPct: float
+    impactScore: float
+    recommendedAction: str
+
+
+class CoachConversionBlockersResponse(BaseModel):
+    requestId: str
+    windowDays: Literal[7, 30, 90]
+    generatedAt: str
+    biggestBlockerStage: str
+    attachRatePct: float
+    completionRatePct: float
+    blockers: list[CoachConversionBlockerItem]
+
+
 CoachModule = Literal["study", "practice", "analyze", "reports"]
 CoachMode = Literal["Explain", "Fix", "Drill", "Plan"]
 CoachActionType = Literal["create_drill", "create_plan"]

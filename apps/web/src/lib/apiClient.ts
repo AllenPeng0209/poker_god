@@ -30,6 +30,24 @@ type ApiErrorResponse = {
   requestId?: string;
 };
 
+export type CoachConversionBlockerItem = {
+  stage: string;
+  sessions: number;
+  dropoffPct: number;
+  impactScore: number;
+  recommendedAction: string;
+};
+
+export type CoachConversionBlockersResponse = {
+  requestId: string;
+  windowDays: 7 | 30 | 90;
+  generatedAt: string;
+  biggestBlockerStage: string;
+  attachRatePct: number;
+  completionRatePct: number;
+  blockers: CoachConversionBlockerItem[];
+};
+
 const DEFAULT_API_BASE = 'http://localhost:3001';
 const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL ?? DEFAULT_API_BASE).replace(/\/+$/, '');
 const PUBLIC_API_KEY = (process.env.NEXT_PUBLIC_API_KEY ?? '').trim();
@@ -154,6 +172,10 @@ export const apiClient = {
 
   async getLeakReport(windowDays: 7 | 30 | 90): Promise<LeakReportResponse> {
     return requestJson<LeakReportResponse>(`/api/reports/leaks?windowDays=${windowDays}`);
+  },
+
+  async getCoachConversionBlockers(windowDays: 7 | 30 | 90): Promise<CoachConversionBlockersResponse> {
+    return requestJson<CoachConversionBlockersResponse>(`/api/admin/coach/conversion-blockers?windowDays=${windowDays}`);
   },
 
   async zenChat(input: ZenChatRequest): Promise<ZenChatResponse> {

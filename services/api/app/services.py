@@ -22,6 +22,8 @@ from .schemas import (
     CoachActionSuggestion,
     CoachChatRequest,
     CoachChatResponse,
+    CoachConversionBlockerItem,
+    CoachConversionBlockersResponse,
     CoachCreateDrillRequest,
     CoachCreatePlanRequest,
     CoachCreatePlanResponse,
@@ -1872,6 +1874,117 @@ def build_leak_report(supabase: Client, window_days: int) -> LeakReportResponse:
         windowDays=7 if window_days == 7 else 90 if window_days == 90 else 30,
         generatedAt=now_iso(),
         items=items,
+    )
+
+
+def build_coach_conversion_blockers(supabase: Client, window_days: int) -> CoachConversionBlockersResponse:
+    rid = request_id()
+    parsed_window = 7 if window_days == 7 else 90 if window_days == 90 else 30
+    cutoff = datetime.now(UTC) - timedelta(days=parsed_window)
+    rows = (
+        supabase.table("pg_mvp_events")
+        .select("session_id,event_name,event_time")
+        .gte("event_time", cutoff.isoformat())
+        .in_("event_name", ["coach_message_sent", "coach_action_executed", "drill_started", "drill_completed"])
+        .execute()
+        .data
+        or []
+    )
+
+    stage_order = ["coach_message_sent", "coach_action_executed", "drill_started", "drill_completed"]
+    stage_labels = {
+        "coach_message_sent": "coach_message_sent",
+        "coach_action_executed": "coach_action_executed",
+        "drill_started": "drill_started",
+        "drill_completed": "drill_completed",
+    }
+    recommendation_map = {
+        "coach_message_sent": "Improve first-reply CTA clarity and add one-tap drill launch.",
+        "coach_action_executed": "Add fallback action suggestions when coach action is skipped.",
+        "drill_started": "Reduce drill-start friction with prefilled settings and instant start.",
+        "drill_completed": "Add completion nudges + progress reward to push finish rate.",
+    }
+
+    session_stage_seen: dict[str, set[str]] = defaultdict(set)
+    for row in rows:
+        session_id = str(row.get("session_id") or "").strip()
+        event_name = str(row.get("event_name") or "").strip()
+        if not session_id or event_name not in stage_order:
+            continue
+        session_stage_seen[session_id].add(event_name)
+
+    if not session_stage_seen:
+        return CoachConversionBlockersResponse(
+            requestId=rid,
+            windowDays=parsed_window,
+            generatedAt=now_iso(),
+            biggestBlockerStage="coach_message_sent",
+            attachRatePct=0.0,
+            completionRatePct=0.0,
+            blockers=[
+                CoachConversionBlockerItem(
+                    stage="coach_message_sent",
+                    sessions=0,
+                    dropoffPct=0.0,
+                    impactScore=0.0,
+                    recommendedAction="Collect at least one day of coach funnel events before enabling this radar.",
+                ),
+            ],
+        )
+
+    stage_counts: dict[str, int] = {stage: 0 for stage in stage_order}
+    for seen in session_stage_seen.values():
+        for stage in stage_order:
+            if stage in seen:
+                stage_counts[stage] += 1
+
+    blockers: list[CoachConversionBlockerItem] = []
+    biggest_stage = stage_order[0]
+    biggest_dropoff = -1.0
+
+    for index, stage in enumerate(stage_order[:-1]):
+        current_count = stage_counts.get(stage, 0)
+        next_stage = stage_order[index + 1]
+        next_count = stage_counts.get(next_stage, 0)
+        if current_count <= 0:
+            dropoff_pct = 0.0
+        else:
+            dropoff_pct = round(max(0.0, ((current_count - next_count) / current_count) * 100.0), 1)
+        impact_score = round(dropoff_pct * max(1.0, current_count / 25.0), 1)
+        if dropoff_pct > biggest_dropoff:
+            biggest_dropoff = dropoff_pct
+            biggest_stage = stage
+
+        blockers.append(
+            CoachConversionBlockerItem(
+                stage=stage_labels[stage],
+                sessions=current_count,
+                dropoffPct=dropoff_pct,
+                impactScore=impact_score,
+                recommendedAction=recommendation_map.get(stage, "Review stage-level dropoff and patch friction points."),
+            ),
+        )
+
+    attach_rate = 0.0
+    completion_rate = 0.0
+    coach_sessions = stage_counts.get("coach_message_sent", 0)
+    action_sessions = stage_counts.get("coach_action_executed", 0)
+    drill_started_sessions = stage_counts.get("drill_started", 0)
+    drill_completed_sessions = stage_counts.get("drill_completed", 0)
+
+    if coach_sessions > 0:
+        attach_rate = round((action_sessions / coach_sessions) * 100.0, 1)
+    if drill_started_sessions > 0:
+        completion_rate = round((drill_completed_sessions / drill_started_sessions) * 100.0, 1)
+
+    return CoachConversionBlockersResponse(
+        requestId=rid,
+        windowDays=parsed_window,
+        generatedAt=now_iso(),
+        biggestBlockerStage=stage_labels[biggest_stage],
+        attachRatePct=attach_rate,
+        completionRatePct=completion_rate,
+        blockers=sorted(blockers, key=lambda item: item.impactScore, reverse=True),
     )
 
 

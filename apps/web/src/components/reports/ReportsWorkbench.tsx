@@ -26,6 +26,19 @@ export function ReportsWorkbench() {
       relatedTag: string;
     }>
   >([]);
+  const [coachBlockers, setCoachBlockers] = useState<{
+    generatedAt: string;
+    biggestBlockerStage: string;
+    attachRatePct: number;
+    completionRatePct: number;
+    blockers: Array<{
+      stage: string;
+      sessions: number;
+      dropoffPct: number;
+      impactScore: number;
+      recommendedAction: string;
+    }>;
+  } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -33,16 +46,27 @@ export function ReportsWorkbench() {
       setLoading(true);
       setError(null);
       try {
-        const response = await apiClient.getLeakReport(windowDays);
+        const [response, blockersResponse] = await Promise.all([
+          apiClient.getLeakReport(windowDays),
+          apiClient.getCoachConversionBlockers(windowDays),
+        ]);
         if (cancelled) return;
         setItems(response.items);
         setGeneratedAt(response.generatedAt);
+        setCoachBlockers({
+          generatedAt: blockersResponse.generatedAt,
+          biggestBlockerStage: blockersResponse.biggestBlockerStage,
+          attachRatePct: blockersResponse.attachRatePct,
+          completionRatePct: blockersResponse.completionRatePct,
+          blockers: blockersResponse.blockers,
+        });
         trackEvent('report_opened', {
           module: 'reports',
           requestId: response.requestId,
           payload: {
             windowDays,
             itemCount: response.items.length,
+            blockerCount: blockersResponse.blockers.length,
           },
         });
       } catch (loadError) {
@@ -121,6 +145,40 @@ export function ReportsWorkbench() {
           </ul>
         ) : null}
       </article>
+
+      {process.env.NEXT_PUBLIC_ADMIN_COACH_CONVERSION_BLOCKERS_V1 === '1' ? (
+        <article className="mvp-card" data-testid="admin-coach-conversion-blockers-radar">
+          <h2>Admin Coach Conversion Blockers Radar</h2>
+          {isLoading ? <p className="mvp-muted">Loading conversion blockers...</p> : null}
+          {!isLoading && coachBlockers ? (
+            <>
+              <p className="mvp-muted">
+                Generated: {coachBlockers.generatedAt || '-'} · Biggest blocker: {coachBlockers.biggestBlockerStage}
+              </p>
+              <p>
+                Attach rate: {coachBlockers.attachRatePct.toFixed(1)}% · Completion rate:{' '}
+                {coachBlockers.completionRatePct.toFixed(1)}%
+              </p>
+              <ul className="mvp-report-list">
+                {coachBlockers.blockers.slice(0, 3).map((item, index) => (
+                  <li key={`${item.stage}-${index}`}>
+                    <div className="mvp-report-list__title">
+                      <strong>
+                        #{index + 1} {item.stage}
+                      </strong>
+                      <span>Impact {item.impactScore.toFixed(1)}</span>
+                    </div>
+                    <p>
+                      Sessions {item.sessions} · Dropoff {item.dropoffPct.toFixed(1)}%
+                    </p>
+                    <p>{item.recommendedAction}</p>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : null}
+        </article>
+      ) : null}
 
       {error ? <p className="module-error-text">{error}</p> : null}
     </section>
