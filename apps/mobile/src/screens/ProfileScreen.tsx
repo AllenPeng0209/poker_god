@@ -1,5 +1,6 @@
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import type { MobileEvHotspotsResponse } from '../features/play/services/evHotspotsApi';
 
 type AppLanguage = 'zh-TW' | 'zh-CN' | 'en-US';
 type LanguageOption = { key: AppLanguage; label: string };
@@ -29,6 +30,13 @@ type ProfileScreenProps = {
   onToggleSfx: () => void;
   onToggleAiVoiceAssist: () => void;
   onTogglePoliteMode: () => void;
+
+  mobileEvHotspotsEnabled?: boolean;
+  mobileEvHotspotsLoading?: boolean;
+  mobileEvHotspotsError?: string | null;
+  mobileEvHotspotsData?: MobileEvHotspotsResponse | null;
+  mobileEvHotspotsWindowDays?: number;
+  onRefreshMobileEvHotspots?: () => void;
 };
 
 function l(language: AppLanguage, zhTw: string, zhCn: string, en: string): string {
@@ -72,6 +80,12 @@ export function ProfileScreen({
   onToggleSfx,
   onToggleAiVoiceAssist,
   onTogglePoliteMode,
+  mobileEvHotspotsEnabled = false,
+  mobileEvHotspotsLoading = false,
+  mobileEvHotspotsError = null,
+  mobileEvHotspotsData = null,
+  mobileEvHotspotsWindowDays = 30,
+  onRefreshMobileEvHotspots,
 }: ProfileScreenProps) {
   const wr = winRate(handsPlayed, handsWon);
 
@@ -117,6 +131,46 @@ export function ProfileScreen({
         <Text style={styles.cardHint}>2. {l(language, '復盤 3 手最大損失局', '复盘 3 手最大损失局', 'Review top 3 losing hands')}</Text>
         <Text style={styles.cardHint}>3. {l(language, '回到學習頁修正單一漏洞', '回到学习页修正单一漏洞', 'Return to Learn and fix one leak at a time')}</Text>
       </View>
+
+
+      {mobileEvHotspotsEnabled ? (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>{l(language, 'EV 漏点热点（移动端）', 'EV 漏点热点（移动端）', 'EV Leak Hotspots (Mobile)')}</Text>
+          <Text style={styles.cardHint}>
+            {l(
+              language,
+              `窗口 ${mobileEvHotspotsWindowDays} 天 · 用于快速锁定高损失街道`,
+              `窗口 ${mobileEvHotspotsWindowDays} 天 · 用于快速锁定高损失街道`,
+              `Window ${mobileEvHotspotsWindowDays}d · quickly surface highest EV-loss streets`,
+            )}
+          </Text>
+          {mobileEvHotspotsLoading ? <Text style={styles.cardHint}>{l(language, '读取中…', '读取中…', 'Loading…')}</Text> : null}
+          {mobileEvHotspotsError ? <Text style={styles.cardWarn}>{mobileEvHotspotsError}</Text> : null}
+          {!mobileEvHotspotsLoading && mobileEvHotspotsData ? (
+            <>
+              <Text style={styles.cardHint}>
+                {l(
+                  language,
+                  `总手数 ${mobileEvHotspotsData.summary.totalHands} · 总损失 ${mobileEvHotspotsData.summary.totalEvLossBb100.toFixed(1)} bb/100`,
+                  `总手数 ${mobileEvHotspotsData.summary.totalHands} · 总损失 ${mobileEvHotspotsData.summary.totalEvLossBb100.toFixed(1)} bb/100`,
+                  `Hands ${mobileEvHotspotsData.summary.totalHands} · Total EV loss ${mobileEvHotspotsData.summary.totalEvLossBb100.toFixed(1)} bb/100`,
+                )}
+              </Text>
+              {(mobileEvHotspotsData.byStreet ?? []).slice(0, 3).map((row, index) => (
+                <Text key={`${row.key}-${index}`} style={styles.cardHint}>
+                  {`${index + 1}. ${row.label} · ${row.sharePct.toFixed(1)}% · EV ${row.totalEvLossBb100.toFixed(1)} · n=${row.sampleSize}`}
+                </Text>
+              ))}
+            </>
+          ) : null}
+          <Pressable
+            onPress={onRefreshMobileEvHotspots}
+            style={({ pressed }) => [styles.actionBtn, styles.actionBtnAlt, pressed && styles.pressed]}
+          >
+            <Text style={styles.actionBtnText}>{l(language, '刷新 EV 热点', '刷新 EV 热点', 'Refresh EV hotspots')}</Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>{l(language, '帳號管理', '账号管理', 'Account Management')}</Text>
@@ -301,6 +355,12 @@ const styles = StyleSheet.create({
     color: '#b8d6e3',
     fontSize: 12,
     lineHeight: 17,
+  },
+  cardWarn: {
+    color: '#ffb3b3',
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: '700',
   },
   accountMetaRow: {
     flexDirection: 'row',

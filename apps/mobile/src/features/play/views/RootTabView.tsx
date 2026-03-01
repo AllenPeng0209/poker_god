@@ -12,6 +12,7 @@ import type { HandRecordDetail, HandRecordSummary, LocalProfile } from '../../..
 import type { ProgressState } from '../../../types/poker';
 
 import * as Play from '../index';
+import { getMobileEvHotspots, type MobileEvHotspotsResponse } from '../services/evHotspotsApi';
 
 const {
   NAV_COLLAPSED_WIDTH,
@@ -95,6 +96,43 @@ export function RootTabView(props: RootTabViewProps) {
     setPoliteMode,
     setSfxEnabled,
   } = props;
+
+  const mobileEvHotspotsEnabled = process.env.EXPO_PUBLIC_MOBILE_EV_HOTSPOTS_V1 === '1';
+  const [mobileEvHotspotsData, setMobileEvHotspotsData] = React.useState<MobileEvHotspotsResponse | null>(null);
+  const [mobileEvHotspotsLoading, setMobileEvHotspotsLoading] = React.useState(false);
+  const [mobileEvHotspotsError, setMobileEvHotspotsError] = React.useState<string | null>(null);
+  const mobileEvHotspotsWindowDays = 30;
+
+  const loadMobileEvHotspots = React.useCallback(async () => {
+    if (!mobileEvHotspotsEnabled) {
+      return;
+    }
+    setMobileEvHotspotsLoading(true);
+    setMobileEvHotspotsError(null);
+    try {
+      const response = await getMobileEvHotspots(mobileEvHotspotsWindowDays);
+      setMobileEvHotspotsData(response);
+    } catch (error) {
+      setMobileEvHotspotsError(error instanceof Error ? error.message : 'Failed to load EV hotspots');
+    } finally {
+      setMobileEvHotspotsLoading(false);
+    }
+  }, [mobileEvHotspotsEnabled]);
+
+  React.useEffect(() => {
+    if (rootTab !== 'profile' || !mobileEvHotspotsEnabled) {
+      return;
+    }
+    if (!mobileEvHotspotsData && !mobileEvHotspotsLoading) {
+      void loadMobileEvHotspots();
+    }
+  }, [
+    rootTab,
+    mobileEvHotspotsEnabled,
+    mobileEvHotspotsData,
+    mobileEvHotspotsLoading,
+    loadMobileEvHotspots,
+  ]);
 
   if (rootTab === 'learn') {
     return (
@@ -199,6 +237,14 @@ export function RootTabView(props: RootTabViewProps) {
                 onToggleSfx={() => setSfxEnabled((v) => !v)}
                 onToggleAiVoiceAssist={() => setAiVoiceAssistEnabled((v) => !v)}
                 onTogglePoliteMode={() => setPoliteMode((v) => !v)}
+                mobileEvHotspotsEnabled={mobileEvHotspotsEnabled}
+                mobileEvHotspotsLoading={mobileEvHotspotsLoading}
+                mobileEvHotspotsError={mobileEvHotspotsError}
+                mobileEvHotspotsData={mobileEvHotspotsData}
+                mobileEvHotspotsWindowDays={mobileEvHotspotsWindowDays}
+                onRefreshMobileEvHotspots={() => {
+                  void loadMobileEvHotspots();
+                }}
               />
             </View>
             <BottomTabBar
