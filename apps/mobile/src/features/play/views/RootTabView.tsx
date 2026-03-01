@@ -11,6 +11,7 @@ import { ReviewScreen } from '../../../screens/ReviewScreen';
 import type { HandRecordDetail, HandRecordSummary, LocalProfile } from '../../../storage/localDb';
 import type { ProgressState } from '../../../types/poker';
 
+import { fetchCoachSessionMemory, type CoachSessionMemoryItem, type CoachSessionMemorySummary } from '../services/coachSessionMemoryApi';
 import * as Play from '../index';
 
 const {
@@ -61,6 +62,8 @@ type RootTabViewProps = {
   setSfxEnabled: React.Dispatch<React.SetStateAction<boolean>>;
 };
 
+const MOBILE_COACH_SESSION_MEMORY_V1 = process.env.EXPO_PUBLIC_MOBILE_COACH_SESSION_MEMORY_V1 === '1';
+
 export function RootTabView(props: RootTabViewProps) {
   const {
     activeProfile,
@@ -95,6 +98,36 @@ export function RootTabView(props: RootTabViewProps) {
     setPoliteMode,
     setSfxEnabled,
   } = props;
+
+  const [sessionMemoryLoading, setSessionMemoryLoading] = React.useState(false);
+  const [sessionMemoryError, setSessionMemoryError] = React.useState<string | null>(null);
+  const [sessionMemorySummary, setSessionMemorySummary] = React.useState<CoachSessionMemorySummary | null>(null);
+  const [sessionMemoryTopSessions, setSessionMemoryTopSessions] = React.useState<CoachSessionMemoryItem[]>([]);
+
+  const loadSessionMemory = React.useCallback(async () => {
+    if (!MOBILE_COACH_SESSION_MEMORY_V1) return;
+
+    setSessionMemoryLoading(true);
+    setSessionMemoryError(null);
+    try {
+      const response = await fetchCoachSessionMemory({ windowDays: 30, limit: 5 });
+      setSessionMemorySummary(response.summary);
+      setSessionMemoryTopSessions(response.sessions);
+    } catch (error) {
+      setSessionMemorySummary(null);
+      setSessionMemoryTopSessions([]);
+      setSessionMemoryError(error instanceof Error ? error.message : 'Failed to load coach session memory.');
+    } finally {
+      setSessionMemoryLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (rootTab !== 'profile' || !MOBILE_COACH_SESSION_MEMORY_V1) {
+      return;
+    }
+    void loadSessionMemory();
+  }, [loadSessionMemory, rootTab]);
 
   if (rootTab === 'learn') {
     return (
@@ -199,6 +232,12 @@ export function RootTabView(props: RootTabViewProps) {
                 onToggleSfx={() => setSfxEnabled((v) => !v)}
                 onToggleAiVoiceAssist={() => setAiVoiceAssistEnabled((v) => !v)}
                 onTogglePoliteMode={() => setPoliteMode((v) => !v)}
+                coachSessionMemoryEnabled={MOBILE_COACH_SESSION_MEMORY_V1}
+                coachSessionMemoryLoading={sessionMemoryLoading}
+                coachSessionMemoryError={sessionMemoryError}
+                coachSessionMemorySummary={sessionMemorySummary}
+                coachSessionMemoryTopSessions={sessionMemoryTopSessions}
+                onRefreshCoachSessionMemory={() => { void loadSessionMemory(); }}
               />
             </View>
             <BottomTabBar

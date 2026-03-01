@@ -4,6 +4,21 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 type AppLanguage = 'zh-TW' | 'zh-CN' | 'en-US';
 type LanguageOption = { key: AppLanguage; label: string };
 
+type CoachSessionMemorySummary = {
+  sessions: number;
+  highRiskSessions: number;
+  averageAttachRatePct: number;
+  staleRiskRatePct: number;
+};
+
+type CoachSessionMemoryItem = {
+  sessionId: string;
+  attachRatePct: number;
+  staleHours: number;
+  riskLevel: 'low' | 'medium' | 'high';
+  recommendedAction: string;
+};
+
 type ProfileScreenProps = {
   language: AppLanguage;
   profileName: string;
@@ -29,6 +44,12 @@ type ProfileScreenProps = {
   onToggleSfx: () => void;
   onToggleAiVoiceAssist: () => void;
   onTogglePoliteMode: () => void;
+  coachSessionMemoryEnabled: boolean;
+  coachSessionMemoryLoading: boolean;
+  coachSessionMemoryError: string | null;
+  coachSessionMemorySummary: CoachSessionMemorySummary | null;
+  coachSessionMemoryTopSessions: CoachSessionMemoryItem[];
+  onRefreshCoachSessionMemory: () => void;
 };
 
 function l(language: AppLanguage, zhTw: string, zhCn: string, en: string): string {
@@ -72,6 +93,12 @@ export function ProfileScreen({
   onToggleSfx,
   onToggleAiVoiceAssist,
   onTogglePoliteMode,
+  coachSessionMemoryEnabled,
+  coachSessionMemoryLoading,
+  coachSessionMemoryError,
+  coachSessionMemorySummary,
+  coachSessionMemoryTopSessions,
+  onRefreshCoachSessionMemory,
 }: ProfileScreenProps) {
   const wr = winRate(handsPlayed, handsWon);
 
@@ -110,6 +137,40 @@ export function ProfileScreen({
         <Text style={styles.leakLabel}>{topLeakLabel}</Text>
         <Text style={styles.cardHint}>{topLeakMission}</Text>
       </View>
+
+      {coachSessionMemoryEnabled ? (
+        <View style={styles.card}>
+          <View style={styles.cardHeaderRow}>
+            <Text style={styles.cardTitle}>{l(language, 'Coach 記憶風險雷達（Mobile）', 'Coach 记忆风险雷达（Mobile）', 'Coach Session Memory Radar (Mobile)')}</Text>
+            <Pressable onPress={onRefreshCoachSessionMemory} style={({ pressed }) => [styles.refreshBtn, pressed && styles.pressed]}>
+              <Text style={styles.refreshBtnText}>{l(language, '刷新', '刷新', 'Refresh')}</Text>
+            </Pressable>
+          </View>
+          {coachSessionMemoryLoading ? <Text style={styles.cardHint}>{l(language, '載入中…', '加载中…', 'Loading...')}</Text> : null}
+          {!coachSessionMemoryLoading && coachSessionMemorySummary ? (
+            <Text style={styles.cardHint}>
+              {l(
+                language,
+                `Sessions ${coachSessionMemorySummary.sessions} · 高風險 ${coachSessionMemorySummary.highRiskSessions} · Attach ${coachSessionMemorySummary.averageAttachRatePct.toFixed(1)}% · Stale ${coachSessionMemorySummary.staleRiskRatePct.toFixed(1)}%`,
+                `Sessions ${coachSessionMemorySummary.sessions} · 高风险 ${coachSessionMemorySummary.highRiskSessions} · Attach ${coachSessionMemorySummary.averageAttachRatePct.toFixed(1)}% · Stale ${coachSessionMemorySummary.staleRiskRatePct.toFixed(1)}%`,
+                `Sessions ${coachSessionMemorySummary.sessions} · High risk ${coachSessionMemorySummary.highRiskSessions} · Attach ${coachSessionMemorySummary.averageAttachRatePct.toFixed(1)}% · Stale ${coachSessionMemorySummary.staleRiskRatePct.toFixed(1)}%`,
+              )}
+            </Text>
+          ) : null}
+          {!coachSessionMemoryLoading && coachSessionMemoryTopSessions.length > 0
+            ? coachSessionMemoryTopSessions.slice(0, 3).map((session, index) => (
+              <View key={session.sessionId} style={styles.sessionRow}>
+                <Text style={styles.sessionTitle}>#{index + 1} {session.sessionId}</Text>
+                <Text style={styles.cardHint}>
+                  {l(language, `attach ${session.attachRatePct.toFixed(1)}% · stale ${session.staleHours.toFixed(1)}h · ${session.riskLevel.toUpperCase()}`, `attach ${session.attachRatePct.toFixed(1)}% · stale ${session.staleHours.toFixed(1)}h · ${session.riskLevel.toUpperCase()}`, `attach ${session.attachRatePct.toFixed(1)}% · stale ${session.staleHours.toFixed(1)}h · ${session.riskLevel.toUpperCase()}`)}
+                </Text>
+                <Text style={styles.cardHint}>{session.recommendedAction}</Text>
+              </View>
+            ))
+            : null}
+          {coachSessionMemoryError ? <Text style={styles.errorText}>{coachSessionMemoryError}</Text> : null}
+        </View>
+      ) : null}
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>{l(language, '建議節奏', '建议节奏', 'Suggested Rhythm')}</Text>
@@ -287,10 +348,30 @@ const styles = StyleSheet.create({
     padding: 10,
     gap: 6,
   },
+  cardHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
   cardTitle: {
     color: '#e6f7ff',
     fontSize: 15,
     fontWeight: '900',
+    flex: 1,
+  },
+  refreshBtn: {
+    borderWidth: 1,
+    borderColor: '#7fd0ff',
+    borderRadius: 8,
+    backgroundColor: '#1e4b6a',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  refreshBtnText: {
+    color: '#f1fbff',
+    fontSize: 11,
+    fontWeight: '800',
   },
   leakLabel: {
     color: '#f5e8b1',
@@ -301,6 +382,24 @@ const styles = StyleSheet.create({
     color: '#b8d6e3',
     fontSize: 12,
     lineHeight: 17,
+  },
+  sessionRow: {
+    borderWidth: 1,
+    borderColor: '#2f5464',
+    borderRadius: 10,
+    backgroundColor: '#0f2f40',
+    padding: 8,
+    gap: 3,
+  },
+  sessionTitle: {
+    color: '#e7f8ff',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  errorText: {
+    color: '#ffd3d3',
+    fontSize: 12,
+    fontWeight: '700',
   },
   accountMetaRow: {
     flexDirection: 'row',
