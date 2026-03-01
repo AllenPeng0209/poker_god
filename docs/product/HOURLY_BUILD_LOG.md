@@ -23,3 +23,29 @@
 - Push result: pending
 - Blockers: none
 - Next action: implement web admin + mobile lifecycle widgets using new homework APIs and capture UI evidence for US-002.
+
+## 2026-03-02 07:25 (Asia/Shanghai)
+- Branch: `pg/hourly-20260302-0725-us002-quality-gate`
+- Focus: T-031 — close US-002 quality gate by making lifecycle API tests runnable in-repo and recording commercialization readiness.
+- Highest-impact optimization identified (deep scan): eliminate launch-risk from unvalidated homework lifecycle state machine; deterministic state persistence is the reliability backbone for coach attach/completion monetization loops.
+- Changed files:
+  - `services/api/app/main.py`
+  - `services/api/app/services.py`
+  - `services/api/app/schemas.py`
+  - `services/api/sql/0003_pg_mvp_coach_homeworks.sql`
+  - `services/api/tests/test_coach_homework_lifecycle_api.py`
+  - `docs/product/2026-03-02-us002-homework-lifecycle-persistence-api.md`
+  - `docs/product/COMMERCIALIZATION_MASTER_TABLE.md`
+  - `docs/product/HOURLY_BUILD_LOG.md`
+  - `/home/allen/.openclaw/workspace/tasks/prd-poker-god-hourly-commercialization.md`
+- Validation:
+  - `python3 -m venv services/api/.venv` ✅
+  - `services/api/.venv/bin/pip install -r services/api/requirements.txt` ✅
+  - `PYTHONPATH=services/api services/api/.venv/bin/python -m unittest -q services/api/tests/test_coach_homework_lifecycle_api.py` ✅ (2 passed)
+  - `services/api/.venv/bin/python -m py_compile services/api/app/main.py services/api/app/services.py services/api/app/schemas.py` ✅
+- Feature flag / rollout:
+  - Backend-only rollout; no new FE flag in this run.
+  - Apply Supabase migration `services/api/sql/0003_pg_mvp_coach_homeworks.sql` before enabling traffic.
+- Push result: pending
+- Blockers: none
+- Next action: build admin/mobile homework lifecycle operation surfaces (feature-flagged) to complete cross-surface commercialization loop.
