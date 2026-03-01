@@ -25,6 +25,10 @@ from .schemas import (
     CoachCreateDrillRequest,
     CoachCreatePlanRequest,
     CoachCreatePlanResponse,
+    CoachHomework,
+    CoachHomeworkCreateRequest,
+    CoachHomeworkResponse,
+    CoachHomeworkStatusUpdateRequest,
     CoachSection,
     Drill,
     DrillCreateRequest,
@@ -1979,6 +1983,104 @@ def coach_create_plan_action(supabase: Client, payload: CoachCreatePlanRequest) 
         createdAt=str(upserted["created_at"]),
     )
     return CoachCreatePlanResponse(requestId=rid, plan=plan)
+
+
+def _homework_from_row(row: dict[str, Any]) -> CoachHomework:
+    return CoachHomework(
+        id=str(row["id"]),
+        userId=str(row["user_id"]),
+        drillId=row.get("drill_id"),
+        sourceType=str(row["source_type"]),  # type: ignore[arg-type]
+        sourceRefId=row.get("source_ref_id"),
+        status=str(row["status"]),  # type: ignore[arg-type]
+        notes=row.get("notes"),
+        createdAt=str(row["created_at"]),
+        updatedAt=str(row["updated_at"]),
+        completedAt=row.get("completed_at"),
+    )
+
+
+def create_coach_homework(supabase: Client, payload: CoachHomeworkCreateRequest) -> CoachHomeworkResponse:
+    rid = request_id()
+    inserted = (
+        supabase.table("pg_mvp_coach_homeworks")
+        .insert(
+            {
+                "user_id": payload.userId,
+                "drill_id": payload.drillId,
+                "source_type": payload.sourceType,
+                "source_ref_id": payload.sourceRefId,
+                "status": "queued",
+                "notes": payload.notes,
+            },
+        )
+        .execute()
+        .data[0]
+    )
+    return CoachHomeworkResponse(requestId=rid, homework=_homework_from_row(inserted))
+
+
+def get_coach_homework(supabase: Client, homework_id: str) -> CoachHomeworkResponse | None:
+    rid = request_id()
+    rows = (
+        supabase.table("pg_mvp_coach_homeworks")
+        .select("*")
+        .eq("id", homework_id)
+        .limit(1)
+        .execute()
+        .data
+        or []
+    )
+    if not rows:
+        return None
+    return CoachHomeworkResponse(requestId=rid, homework=_homework_from_row(rows[0]))
+
+
+def update_coach_homework_status(
+    supabase: Client,
+    homework_id: str,
+    payload: CoachHomeworkStatusUpdateRequest,
+) -> CoachHomeworkResponse | str | None:
+    rows = (
+        supabase.table("pg_mvp_coach_homeworks")
+        .select("*")
+        .eq("id", homework_id)
+        .limit(1)
+        .execute()
+        .data
+        or []
+    )
+    if not rows:
+        return None
+
+    current = str(rows[0].get("status") or "queued")
+    allowed: dict[str, set[str]] = {
+        "queued": {"in_progress", "canceled"},
+        "in_progress": {"completed", "canceled"},
+        "completed": set(),
+        "canceled": set(),
+    }
+    next_status = payload.status
+    if next_status == current:
+        return CoachHomeworkResponse(requestId=request_id(), homework=_homework_from_row(rows[0]))
+    if next_status not in allowed.get(current, set()):
+        return f"invalid transition {current} -> {next_status}"
+
+    updates: dict[str, Any] = {
+        "status": next_status,
+        "updated_at": now_iso(),
+    }
+    if next_status == "completed":
+        updates["completed_at"] = now_iso()
+
+    updated = (
+        supabase.table("pg_mvp_coach_homeworks")
+        .update(updates)
+        .eq("id", homework_id)
+        .execute()
+        .data[0]
+    )
+    return CoachHomeworkResponse(requestId=request_id(), homework=_homework_from_row(updated))
 
 
 def ingest_events(supabase: Client, events: list[dict[str, Any]]) -> int:
