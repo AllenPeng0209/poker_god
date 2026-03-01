@@ -21,6 +21,9 @@ from .schemas import (
     AnalyzedHand,
     CoachActionSuggestion,
     CoachChatRequest,
+    CoachCampaignAttributionItem,
+    CoachCampaignAttributionResponse,
+    CoachCampaignAttributionSummary,
     CoachChatResponse,
     CoachCreateDrillRequest,
     CoachCreatePlanRequest,
@@ -1871,6 +1874,117 @@ def build_leak_report(supabase: Client, window_days: int) -> LeakReportResponse:
         requestId=rid,
         windowDays=7 if window_days == 7 else 90 if window_days == 90 else 30,
         generatedAt=now_iso(),
+        items=items,
+    )
+
+
+def build_coach_campaign_attribution(
+    supabase: Client,
+    window_days: int,
+    limit: int = 20,
+) -> CoachCampaignAttributionResponse:
+    rid = request_id()
+    parsed_window = 7 if window_days == 7 else 90 if window_days == 90 else 30
+    safe_limit = max(1, min(limit, 50))
+    cutoff = datetime.now(UTC) - timedelta(days=parsed_window)
+
+    rows = (
+        supabase.table("pg_mvp_events")
+        .select("event_name,event_time,session_id,payload")
+        .gte("event_time", cutoff.isoformat())
+        .in_("event_name", ["coach_campaign_launched", "coach_action_executed", "drill_completed"])
+        .order("event_time")
+        .execute()
+        .data
+        or []
+    )
+
+    launches: dict[str, dict[str, Any]] = {}
+    attaches: defaultdict[str, int] = defaultdict(int)
+    completions: defaultdict[str, int] = defaultdict(int)
+
+    for row in rows:
+        event_name = str(row.get("event_name") or "")
+        payload = row.get("payload") or {}
+        if not isinstance(payload, dict):
+            payload = {}
+        campaign_id = str(
+            payload.get("campaignId")
+            or payload.get("campaign_id")
+            or payload.get("sourceCampaignId")
+            or ""
+        ).strip()
+        if not campaign_id:
+            continue
+
+        if event_name == "coach_campaign_launched":
+            existing = launches.get(campaign_id)
+            source = str(payload.get("source") or payload.get("entrypoint") or "admin").strip() or "admin"
+            launched_at = str(row.get("event_time") or now_iso())
+            if existing:
+                existing["launches"] = _safe_int(existing.get("launches")) + 1
+                if launched_at < str(existing.get("launched_at") or launched_at):
+                    existing["launched_at"] = launched_at
+            else:
+                launches[campaign_id] = {
+                    "campaign_id": campaign_id,
+                    "launched_at": launched_at,
+                    "source": source,
+                    "launches": 1,
+                }
+        elif event_name == "coach_action_executed":
+            attaches[campaign_id] += 1
+        elif event_name == "drill_completed":
+            completions[campaign_id] += 1
+
+    ranked = sorted(
+        launches.values(),
+        key=lambda row: (
+            _safe_int(attaches.get(str(row.get("campaign_id")), 0)),
+            _safe_int(row.get("launches")),
+        ),
+        reverse=True,
+    )[:safe_limit]
+
+    items: list[CoachCampaignAttributionItem] = []
+    total_launches = 0
+    total_attaches = 0
+    total_completions = 0
+    for row in ranked:
+        campaign_id = str(row.get("campaign_id"))
+        launch_count = max(1, _safe_int(row.get("launches")))
+        attributed_attaches = _safe_int(attaches.get(campaign_id, 0))
+        attributed_completions = _safe_int(completions.get(campaign_id, 0))
+        total_launches += launch_count
+        total_attaches += attributed_attaches
+        total_completions += attributed_completions
+        items.append(
+            CoachCampaignAttributionItem(
+                campaignId=campaign_id,
+                launchedAt=str(row.get("launched_at") or now_iso()),
+                source=str(row.get("source") or "admin"),
+                launches=launch_count,
+                attributedAttaches=attributed_attaches,
+                attributedCompletions=attributed_completions,
+                attachRatePct=round((attributed_attaches / launch_count) * 100.0, 1),
+                completionRatePct=round((attributed_completions / launch_count) * 100.0, 1),
+            ),
+        )
+
+    summary = CoachCampaignAttributionSummary(
+        totalCampaigns=len(items),
+        totalLaunches=total_launches,
+        attributedAttaches=total_attaches,
+        attributedCompletions=total_completions,
+        attachRatePct=round((total_attaches / total_launches) * 100.0, 1) if total_launches else 0.0,
+        completionRatePct=round((total_completions / total_launches) * 100.0, 1) if total_launches else 0.0,
+    )
+
+    return CoachCampaignAttributionResponse(
+        requestId=rid,
+        windowDays=parsed_window,
+        generatedAt=now_iso(),
+        summary=summary,
         items=items,
     )
 

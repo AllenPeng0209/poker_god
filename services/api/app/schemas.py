@@ -390,6 +390,7 @@ AnalyticsEventName = Literal[
     "report_opened",
     "coach_message_sent",
     "coach_action_executed",
+    "coach_campaign_launched",
 ]
 
 
@@ -411,3 +412,31 @@ class AnalyticsIngestRequest(BaseModel):
 class AnalyticsIngestResponse(BaseModel):
     requestId: str
     accepted: int
+
+
+class CoachCampaignAttributionItem(BaseModel):
+    campaignId: str
+    launchedAt: str
+    source: str
+    launches: int
+    attributedAttaches: int
+    attributedCompletions: int
+    attachRatePct: float
+    completionRatePct: float
+
+
+class CoachCampaignAttributionSummary(BaseModel):
+    totalCampaigns: int
+    totalLaunches: int
+    attributedAttaches: int
+    attributedCompletions: int
+    attachRatePct: float
+    completionRatePct: float
+
+
+class CoachCampaignAttributionResponse(BaseModel):
+    requestId: str
+    windowDays: Literal[7, 30, 90]
+    generatedAt: str
+    summary: CoachCampaignAttributionSummary
+    items: list[CoachCampaignAttributionItem]

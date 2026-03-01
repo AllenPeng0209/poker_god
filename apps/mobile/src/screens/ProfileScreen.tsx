@@ -1,6 +1,35 @@
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+const MOBILE_CAMPAIGN_ATTRIBUTION_ENABLED = process.env.EXPO_PUBLIC_MOBILE_CAMPAIGN_ATTRIBUTION_V1 === '1';
+const MOBILE_API_BASE_URL = (process.env.EXPO_PUBLIC_POKER_GOD_API_BASE_URL ?? 'http://localhost:3001').replace(/\/+$/, '');
+const MOBILE_API_KEY = (process.env.EXPO_PUBLIC_POKER_GOD_API_KEY ?? '').trim();
+
+type CampaignAttributionSummary = {
+  totalLaunches: number;
+  attributedAttaches: number;
+  attributedCompletions: number;
+  attachRatePct: number;
+  completionRatePct: number;
+};
+
+async function fetchCampaignAttributionSummary(): Promise<CampaignAttributionSummary> {
+  const response = await fetch(`${MOBILE_API_BASE_URL}/api/admin/coach/campaign-attribution?windowDays=30&limit=3`, {
+    headers: {
+      'Content-Type': 'application/json',
+      ...(MOBILE_API_KEY ? { 'x-api-key': MOBILE_API_KEY } : {}),
+    },
+  });
+  if (!response.ok) {
+    throw new Error(`campaign attribution request failed (${response.status})`);
+  }
+  const payload = (await response.json()) as { summary?: CampaignAttributionSummary };
+  if (!payload.summary) {
+    throw new Error('campaign attribution summary missing');
+  }
+  return payload.summary;
+}
+
 type AppLanguage = 'zh-TW' | 'zh-CN' | 'en-US';
 type LanguageOption = { key: AppLanguage; label: string };
 
@@ -74,6 +103,31 @@ export function ProfileScreen({
   onTogglePoliteMode,
 }: ProfileScreenProps) {
   const wr = winRate(handsPlayed, handsWon);
+  const [attributionLoading, setAttributionLoading] = React.useState(false);
+  const [attributionError, setAttributionError] = React.useState<string | null>(null);
+  const [attributionSummary, setAttributionSummary] = React.useState<CampaignAttributionSummary | null>(null);
+
+  const refreshAttribution = React.useCallback(() => {
+    if (!MOBILE_CAMPAIGN_ATTRIBUTION_ENABLED) {
+      return;
+    }
+    setAttributionLoading(true);
+    setAttributionError(null);
+    void fetchCampaignAttributionSummary()
+      .then((summary) => {
+        setAttributionSummary(summary);
+      })
+      .catch((error: unknown) => {
+        setAttributionError(error instanceof Error ? error.message : 'load failed');
+      })
+      .finally(() => {
+        setAttributionLoading(false);
+      });
+  }, []);
+
+  React.useEffect(() => {
+    refreshAttribution();
+  }, [refreshAttribution]);
 
   return (
     <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -110,6 +164,24 @@ export function ProfileScreen({
         <Text style={styles.leakLabel}>{topLeakLabel}</Text>
         <Text style={styles.cardHint}>{topLeakMission}</Text>
       </View>
+
+      {MOBILE_CAMPAIGN_ATTRIBUTION_ENABLED ? (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>{l(language, '投放归因闭环（移动端）', '投放归因闭环（移动端）', 'Campaign Attribution Loop (Mobile)')}</Text>
+          {attributionLoading ? <Text style={styles.cardHint}>{l(language, '正在加载…', '正在加载…', 'Loading...')}</Text> : null}
+          {attributionError ? <Text style={styles.cardHint}>{attributionError}</Text> : null}
+          {attributionSummary ? (
+            <>
+              <Text style={styles.cardHint}>{l(language, `投放次数：${attributionSummary.totalLaunches}`, `投放次数：${attributionSummary.totalLaunches}`, `Launches: ${attributionSummary.totalLaunches}`)}</Text>
+              <Text style={styles.cardHint}>{l(language, `Attach：${attributionSummary.attributedAttaches} (${attributionSummary.attachRatePct.toFixed(1)}%)`, `Attach：${attributionSummary.attributedAttaches} (${attributionSummary.attachRatePct.toFixed(1)}%)`, `Attach: ${attributionSummary.attributedAttaches} (${attributionSummary.attachRatePct.toFixed(1)}%)`)}</Text>
+              <Text style={styles.cardHint}>{l(language, `完成：${attributionSummary.attributedCompletions} (${attributionSummary.completionRatePct.toFixed(1)}%)`, `完成：${attributionSummary.attributedCompletions} (${attributionSummary.completionRatePct.toFixed(1)}%)`, `Completions: ${attributionSummary.attributedCompletions} (${attributionSummary.completionRatePct.toFixed(1)}%)`)}</Text>
+            </>
+          ) : null}
+          <Pressable onPress={refreshAttribution} style={({ pressed }) => [styles.actionBtn, pressed && styles.pressed]}>
+            <Text style={styles.actionBtnText}>{l(language, '手动刷新归因', '手动刷新归因', 'Refresh Attribution')}</Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>{l(language, '建議節奏', '建议节奏', 'Suggested Rhythm')}</Text>

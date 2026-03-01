@@ -3,10 +3,11 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useI18n } from '@/components/i18n/I18nProvider';
-import { apiClient } from '@/lib/apiClient';
+import { apiClient, type CoachCampaignAttributionItem } from '@/lib/apiClient';
 import { trackEvent } from '@/lib/analytics';
 
 const WINDOW_OPTIONS: Array<7 | 30 | 90> = [7, 30, 90];
+const ADMIN_CAMPAIGN_ATTRIBUTION_ENABLED = process.env.NEXT_PUBLIC_ADMIN_CAMPAIGN_ATTRIBUTION_V1 === '1';
 
 export function ReportsWorkbench() {
   const { t } = useI18n();
@@ -26,6 +27,16 @@ export function ReportsWorkbench() {
       relatedTag: string;
     }>
   >([]);
+  const [attributionLoading, setAttributionLoading] = useState(false);
+  const [attributionError, setAttributionError] = useState<string | null>(null);
+  const [attributionItems, setAttributionItems] = useState<CoachCampaignAttributionItem[]>([]);
+  const [attributionSummary, setAttributionSummary] = useState<{
+    totalLaunches: number;
+    attributedAttaches: number;
+    attributedCompletions: number;
+    attachRatePct: number;
+    completionRatePct: number;
+  } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -61,6 +72,35 @@ export function ReportsWorkbench() {
       cancelled = true;
     };
   }, [windowDays, t]);
+
+  useEffect(() => {
+    if (!ADMIN_CAMPAIGN_ATTRIBUTION_ENABLED) {
+      return;
+    }
+    let cancelled = false;
+    const run = async () => {
+      setAttributionLoading(true);
+      setAttributionError(null);
+      try {
+        const response = await apiClient.getCoachCampaignAttribution(windowDays, 5);
+        if (cancelled) return;
+        setAttributionItems(response.items);
+        setAttributionSummary(response.summary);
+      } catch (loadError) {
+        if (!cancelled) {
+          setAttributionError(loadError instanceof Error ? loadError.message : 'Failed to load campaign attribution');
+        }
+      } finally {
+        if (!cancelled) {
+          setAttributionLoading(false);
+        }
+      }
+    };
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [windowDays]);
 
   return (
     <section className="mvp-panel" aria-labelledby="reports-title">
@@ -121,6 +161,37 @@ export function ReportsWorkbench() {
           </ul>
         ) : null}
       </article>
+
+      {ADMIN_CAMPAIGN_ATTRIBUTION_ENABLED ? (
+        <article className="mvp-card">
+          <h2>Admin + Mobile Campaign Attribution Loop</h2>
+          {attributionLoading ? <p className="mvp-muted">Loading attribution…</p> : null}
+          {attributionError ? <p className="module-error-text">{attributionError}</p> : null}
+          {!attributionLoading && !attributionError && attributionSummary ? (
+            <p className="mvp-muted">
+              Launches {attributionSummary.totalLaunches} · Attaches {attributionSummary.attributedAttaches} ({attributionSummary.attachRatePct.toFixed(1)}%) · Completions {attributionSummary.attributedCompletions} ({attributionSummary.completionRatePct.toFixed(1)}%)
+            </p>
+          ) : null}
+          {!attributionLoading && !attributionError && attributionItems.length > 0 ? (
+            <ul className="mvp-report-list">
+              {attributionItems.map((item) => (
+                <li key={item.campaignId}>
+                  <div className="mvp-report-list__title">
+                    <strong>{item.campaignId}</strong>
+                    <span>{item.source}</span>
+                  </div>
+                  <p>
+                    Launches {item.launches} · Attach {item.attachRatePct.toFixed(1)}% · Completion {item.completionRatePct.toFixed(1)}%
+                  </p>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {!attributionLoading && !attributionError && attributionItems.length === 0 ? (
+            <p className="mvp-muted">No campaign launch events in selected window.</p>
+          ) : null}
+        </article>
+      ) : null}
 
       {error ? <p className="module-error-text">{error}</p> : null}
     </section>
