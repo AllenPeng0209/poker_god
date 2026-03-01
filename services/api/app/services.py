@@ -33,6 +33,7 @@ from .schemas import (
     DrillListResponse,
     LeakReportItem,
     LeakReportResponse,
+    EvLeakHotspotsResponse,
     PracticeAnswerFeedback,
     PracticeCompleteSessionResponse,
     PracticeQuestion,
@@ -1872,6 +1873,87 @@ def build_leak_report(supabase: Client, window_days: int) -> LeakReportResponse:
         windowDays=7 if window_days == 7 else 90 if window_days == 90 else 30,
         generatedAt=now_iso(),
         items=items,
+    )
+
+
+def build_ev_leak_hotspots(supabase: Client, window_days: int) -> EvLeakHotspotsResponse:
+    rid = request_id()
+    cutoff = datetime.now(UTC) - timedelta(days=window_days)
+    rows = (
+        supabase.table("pg_mvp_analyzed_hands")
+        .select("position,street,ev_loss_bb100")
+        .gte("played_at", cutoff.isoformat())
+        .execute()
+        .data
+        or []
+    )
+
+    def _empty_response() -> EvLeakHotspotsResponse:
+        return EvLeakHotspotsResponse(
+            requestId=rid,
+            windowDays=7 if window_days == 7 else 90 if window_days == 90 else 30,
+            generatedAt=now_iso(),
+            byStreet=[],
+            byPosition=[],
+            summary={
+                "totalHands": 0,
+                "totalEvLossBb100": 0.0,
+                "biggestLeakKey": None,
+                "biggestLeakSharePct": 0.0,
+            },
+        )
+
+    if not rows:
+        return _empty_response()
+
+    total_ev_loss = sum(max(0.0, _safe_float(row.get("ev_loss_bb100"))) for row in rows)
+    if total_ev_loss <= 0:
+        return _empty_response()
+
+    def _group_by(field: str, fallback_prefix: str) -> list[dict[str, Any]]:
+        grouped: dict[str, dict[str, float]] = {}
+        for row in rows:
+            key = str(row.get(field) or f"unknown_{fallback_prefix}").strip().lower()
+            if key not in grouped:
+                grouped[key] = {"sample": 0, "ev": 0.0}
+            grouped[key]["sample"] += 1
+            grouped[key]["ev"] += max(0.0, _safe_float(row.get("ev_loss_bb100")))
+
+        ranked = sorted(grouped.items(), key=lambda item: item[1]["ev"], reverse=True)
+        result: list[dict[str, Any]] = []
+        for key, value in ranked[:6]:
+            ev_loss = value["ev"]
+            sample_size = int(value["sample"])
+            share_pct = round((ev_loss / total_ev_loss) * 100.0, 1)
+            avg_ev_loss = round(ev_loss / max(1, sample_size), 2)
+            result.append(
+                {
+                    "key": key,
+                    "label": key.replace("_", " ").upper(),
+                    "sampleSize": sample_size,
+                    "averageEvLossBb100": avg_ev_loss,
+                    "totalEvLossBb100": round(ev_loss, 2),
+                    "sharePct": share_pct,
+                },
+            )
+        return result
+
+    by_street = _group_by("street", "street")
+    by_position = _group_by("position", "position")
+    biggest = by_street[0] if by_street else None
+
+    return EvLeakHotspotsResponse(
+        requestId=rid,
+        windowDays=7 if window_days == 7 else 90 if window_days == 90 else 30,
+        generatedAt=now_iso(),
+        byStreet=by_street,
+        byPosition=by_position,
+        summary={
+            "totalHands": len(rows),
+            "totalEvLossBb100": round(total_ev_loss, 2),
+            "biggestLeakKey": biggest["key"] if biggest else None,
+            "biggestLeakSharePct": biggest["sharePct"] if biggest else 0.0,
+        },
     )
 
 

@@ -7,6 +7,7 @@ import { apiClient } from '@/lib/apiClient';
 import { trackEvent } from '@/lib/analytics';
 
 const WINDOW_OPTIONS: Array<7 | 30 | 90> = [7, 30, 90];
+const ADMIN_EV_HOTSPOTS_ENABLED = process.env.NEXT_PUBLIC_ADMIN_EV_HOTSPOTS_V1 === '1';
 
 export function ReportsWorkbench() {
   const { t } = useI18n();
@@ -26,6 +27,20 @@ export function ReportsWorkbench() {
       relatedTag: string;
     }>
   >([]);
+  const [evHotspots, setEvHotspots] = useState<{
+    generatedAt: string;
+    totalHands: number;
+    totalEvLossBb100: number;
+    biggestLeakKey: string | null;
+    biggestLeakSharePct: number;
+    byStreet: Array<{
+      key: string;
+      label: string;
+      sampleSize: number;
+      totalEvLossBb100: number;
+      sharePct: number;
+    }>;
+  } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -37,12 +52,30 @@ export function ReportsWorkbench() {
         if (cancelled) return;
         setItems(response.items);
         setGeneratedAt(response.generatedAt);
+
+        if (ADMIN_EV_HOTSPOTS_ENABLED) {
+          const hotspots = await apiClient.getAdminEvHotspots(windowDays);
+          if (!cancelled) {
+            setEvHotspots({
+              generatedAt: hotspots.generatedAt,
+              totalHands: hotspots.summary.totalHands,
+              totalEvLossBb100: hotspots.summary.totalEvLossBb100,
+              biggestLeakKey: hotspots.summary.biggestLeakKey,
+              biggestLeakSharePct: hotspots.summary.biggestLeakSharePct,
+              byStreet: hotspots.byStreet,
+            });
+          }
+        } else {
+          setEvHotspots(null);
+        }
+
         trackEvent('report_opened', {
           module: 'reports',
           requestId: response.requestId,
           payload: {
             windowDays,
             itemCount: response.items.length,
+            evHotspotsEnabled: ADMIN_EV_HOTSPOTS_ENABLED,
           },
         });
       } catch (loadError) {
@@ -121,6 +154,29 @@ export function ReportsWorkbench() {
           </ul>
         ) : null}
       </article>
+
+      {ADMIN_EV_HOTSPOTS_ENABLED && evHotspots ? (
+        <article className="mvp-card">
+          <h2>Admin EV Leak Hotspots</h2>
+          <p className="mvp-muted">
+            {`window=${windowDays}d · hands=${evHotspots.totalHands} · totalEVLoss=${evHotspots.totalEvLossBb100.toFixed(1)} · biggest=${evHotspots.biggestLeakKey ?? 'n/a'} (${evHotspots.biggestLeakSharePct.toFixed(1)}%)`}
+          </p>
+          {evHotspots.byStreet.length === 0 ? <p className="mvp-muted">No hotspots yet.</p> : null}
+          {evHotspots.byStreet.length > 0 ? (
+            <ul className="mvp-report-list">
+              {evHotspots.byStreet.map((item, index) => (
+                <li key={`${item.key}-${index}`}>
+                  <div className="mvp-report-list__title">
+                    <strong>{`#${index + 1} ${item.label}`}</strong>
+                    <span>{`${item.sharePct.toFixed(1)}% EV share`}</span>
+                  </div>
+                  <p>{`sample=${item.sampleSize} · totalEVLoss=${item.totalEvLossBb100.toFixed(1)}`}</p>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </article>
+      ) : null}
 
       {error ? <p className="module-error-text">{error}</p> : null}
     </section>

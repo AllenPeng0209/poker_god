@@ -30,6 +30,29 @@ type ApiErrorResponse = {
   requestId?: string;
 };
 
+type EvLeakHotspotItem = {
+  key: string;
+  label: string;
+  sampleSize: number;
+  averageEvLossBb100: number;
+  totalEvLossBb100: number;
+  sharePct: number;
+};
+
+type EvLeakHotspotsResponse = {
+  requestId: string;
+  windowDays: 7 | 30 | 90;
+  generatedAt: string;
+  byStreet: EvLeakHotspotItem[];
+  byPosition: EvLeakHotspotItem[];
+  summary: {
+    totalHands: number;
+    totalEvLossBb100: number;
+    biggestLeakKey: string | null;
+    biggestLeakSharePct: number;
+  };
+};
+
 const DEFAULT_API_BASE = 'http://localhost:3001';
 const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL ?? DEFAULT_API_BASE).replace(/\/+$/, '');
 const PUBLIC_API_KEY = (process.env.NEXT_PUBLIC_API_KEY ?? '').trim();
@@ -154,6 +177,10 @@ export const apiClient = {
 
   async getLeakReport(windowDays: 7 | 30 | 90): Promise<LeakReportResponse> {
     return requestJson<LeakReportResponse>(`/api/reports/leaks?windowDays=${windowDays}`);
+  },
+
+  async getAdminEvHotspots(windowDays: 7 | 30 | 90): Promise<EvLeakHotspotsResponse> {
+    return requestJson<EvLeakHotspotsResponse>(`/api/admin/coach/ev-hotspots?windowDays=${windowDays}`);
   },
 
   async zenChat(input: ZenChatRequest): Promise<ZenChatResponse> {

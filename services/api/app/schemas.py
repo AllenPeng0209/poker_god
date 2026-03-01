@@ -318,6 +318,31 @@ class LeakReportResponse(BaseModel):
     items: list[LeakReportItem]
 
 
+class EvLeakHotspotItem(BaseModel):
+    key: str
+    label: str
+    sampleSize: int
+    averageEvLossBb100: float
+    totalEvLossBb100: float
+    sharePct: float
+
+
+class EvLeakHotspotsSummary(BaseModel):
+    totalHands: int
+    totalEvLossBb100: float
+    biggestLeakKey: str | None = None
+    biggestLeakSharePct: float = 0.0
+
+
+class EvLeakHotspotsResponse(BaseModel):
+    requestId: str
+    windowDays: Literal[7, 30, 90]
+    generatedAt: str
+    byStreet: list[EvLeakHotspotItem]
+    byPosition: list[EvLeakHotspotItem]
+    summary: EvLeakHotspotsSummary
+
+
 CoachModule = Literal["study", "practice", "analyze", "reports"]
 CoachMode = Literal["Explain", "Fix", "Drill", "Plan"]
 CoachActionType = Literal["create_drill", "create_plan"]
