@@ -9,6 +9,8 @@ import type {
   CoachCreateDrillRequest,
   CoachCreatePlanRequest,
   CoachCreatePlanResponse,
+  CoachCampaignCreateRequest,
+  CoachCampaignCreateResponse,
   DrillCreateRequest,
   DrillCreateResponse,
   DrillListResponse,
@@ -179,6 +181,13 @@ export const apiClient = {
 
   async coachCreatePlan(input: CoachCreatePlanRequest): Promise<CoachCreatePlanResponse> {
     return requestJson<CoachCreatePlanResponse>('/api/coach/actions/create-plan', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  },
+
+  async createCoachCampaign(input: CoachCampaignCreateRequest): Promise<CoachCampaignCreateResponse> {
+    return requestJson<CoachCampaignCreateResponse>('/api/admin/coach/campaigns', {
       method: 'POST',
       body: JSON.stringify(input),
     });

@@ -356,6 +356,40 @@ export interface CoachCreatePlanResponse {
   plan: WeeklyPlan;
 }
 
+export type CampaignChannel = 'in_app' | 'push' | 'email';
+export type CampaignStatus = 'draft' | 'launched';
+
+export interface CoachCampaignCreateRequest {
+  campaignName: string;
+  targetCluster: string;
+  channel: CampaignChannel;
+  sourceWindowDays?: 7 | 30 | 90;
+  expectedAttachLiftPct: number;
+  createdBy: string;
+  notes?: string;
+  launchNow?: boolean;
+}
+
+export interface CoachCampaign {
+  id: string;
+  campaignName: string;
+  targetCluster: string;
+  channel: CampaignChannel;
+  sourceWindowDays: 7 | 30 | 90;
+  expectedAttachLiftPct: number;
+  status: CampaignStatus;
+  createdBy: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+  launchedAt?: string;
+}
+
+export interface CoachCampaignCreateResponse {
+  requestId: string;
+  campaign: CoachCampaign;
+}
+
 export type AnalyticsEventName =
   | 'study_node_opened'
   | 'drill_started'

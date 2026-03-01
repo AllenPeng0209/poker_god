@@ -382,6 +382,41 @@ class CoachCreatePlanResponse(BaseModel):
     plan: WeeklyPlan
 
 
+CampaignChannel = Literal["in_app", "push", "email"]
+CampaignStatus = Literal["draft", "launched"]
+
+
+class CoachCampaignCreateRequest(BaseModel):
+    campaignName: str = Field(min_length=3, max_length=120)
+    targetCluster: str = Field(min_length=2, max_length=64)
+    channel: CampaignChannel
+    sourceWindowDays: Literal[7, 30, 90] = 30
+    expectedAttachLiftPct: float = Field(ge=0, le=100)
+    createdBy: str = Field(min_length=2, max_length=80)
+    notes: str | None = Field(default=None, max_length=500)
+    launchNow: bool = False
+
+
+class CoachCampaign(BaseModel):
+    id: str
+    campaignName: str
+    targetCluster: str
+    channel: CampaignChannel
+    sourceWindowDays: Literal[7, 30, 90]
+    expectedAttachLiftPct: float
+    status: CampaignStatus
+    createdBy: str
+    notes: str | None = None
+    createdAt: str
+    updatedAt: str
+    launchedAt: str | None = None
+
+
+class CoachCampaignCreateResponse(BaseModel):
+    requestId: str
+    campaign: CoachCampaign
+
+
 AnalyticsEventName = Literal[
     "study_node_opened",
     "drill_started",

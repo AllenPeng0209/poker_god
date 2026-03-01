@@ -25,6 +25,9 @@ from .schemas import (
     CoachCreateDrillRequest,
     CoachCreatePlanRequest,
     CoachCreatePlanResponse,
+    CoachCampaign,
+    CoachCampaignCreateRequest,
+    CoachCampaignCreateResponse,
     CoachSection,
     Drill,
     DrillCreateRequest,
@@ -1979,6 +1982,49 @@ def coach_create_plan_action(supabase: Client, payload: CoachCreatePlanRequest) 
         createdAt=str(upserted["created_at"]),
     )
     return CoachCreatePlanResponse(requestId=rid, plan=plan)
+
+
+def create_coach_campaign(supabase: Client, payload: CoachCampaignCreateRequest) -> CoachCampaignCreateResponse:
+    rid = request_id()
+    now = now_iso()
+    status = "launched" if payload.launchNow else "draft"
+    launched_at = now if payload.launchNow else None
+
+    inserted = (
+        supabase.table("pg_mvp_coach_campaigns")
+        .insert(
+            {
+                "campaign_name": payload.campaignName.strip(),
+                "target_cluster": payload.targetCluster.strip(),
+                "channel": payload.channel,
+                "source_window_days": payload.sourceWindowDays,
+                "expected_attach_lift_pct": payload.expectedAttachLiftPct,
+                "status": status,
+                "created_by": payload.createdBy.strip(),
+                "notes": payload.notes.strip() if isinstance(payload.notes, str) and payload.notes.strip() else None,
+                "launched_at": launched_at,
+                "updated_at": now,
+            },
+        )
+        .execute()
+        .data[0]
+    )
+
+    campaign = CoachCampaign(
+        id=str(inserted["id"]),
+        campaignName=str(inserted["campaign_name"]),
+        targetCluster=str(inserted["target_cluster"]),
+        channel=str(inserted["channel"]),  # type: ignore[arg-type]
+        sourceWindowDays=_safe_int(inserted.get("source_window_days")),  # type: ignore[arg-type]
+        expectedAttachLiftPct=_safe_float(inserted.get("expected_attach_lift_pct")),
+        status=str(inserted["status"]),  # type: ignore[arg-type]
+        createdBy=str(inserted["created_by"]),
+        notes=inserted.get("notes"),
+        createdAt=str(inserted["created_at"]),
+        updatedAt=str(inserted.get("updated_at") or inserted["created_at"]),
+        launchedAt=inserted.get("launched_at"),
+    )
+    return CoachCampaignCreateResponse(requestId=rid, campaign=campaign)
 
 
 def ingest_events(supabase: Client, events: list[dict[str, Any]]) -> int:

@@ -26,6 +26,11 @@ export function ReportsWorkbench() {
       relatedTag: string;
     }>
   >([]);
+  const campaignLaunchEnabled = process.env.NEXT_PUBLIC_ADMIN_COACH_CAMPAIGN_LAUNCH_V1 === '1';
+  const [campaignName, setCampaignName] = useState('');
+  const [targetCluster, setTargetCluster] = useState('over_fold');
+  const [campaignStatus, setCampaignStatus] = useState<string>('');
+  const [launchingCampaign, setLaunchingCampaign] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -61,6 +66,41 @@ export function ReportsWorkbench() {
       cancelled = true;
     };
   }, [windowDays, t]);
+
+  const handleLaunchCampaign = async () => {
+    if (!campaignName.trim()) {
+      setCampaignStatus('Campaign name is required.');
+      return;
+    }
+    setLaunchingCampaign(true);
+    setCampaignStatus('');
+    try {
+      const response = await apiClient.createCoachCampaign({
+        campaignName: campaignName.trim(),
+        targetCluster,
+        channel: 'in_app',
+        sourceWindowDays: windowDays,
+        expectedAttachLiftPct: 4,
+        createdBy: 'admin-web',
+        launchNow: true,
+      });
+      setCampaignStatus(`Launched ${response.campaign.campaignName} (${response.campaign.id.slice(0, 8)})`);
+      trackEvent('coach_action_executed', {
+        module: 'reports',
+        requestId: response.requestId,
+        payload: {
+          campaignId: response.campaign.id,
+          targetCluster: response.campaign.targetCluster,
+          channel: response.campaign.channel,
+        },
+      });
+      setCampaignName('');
+    } catch (submitError) {
+      setCampaignStatus(submitError instanceof Error ? submitError.message : 'Campaign launch failed.');
+    } finally {
+      setLaunchingCampaign(false);
+    }
+  };
 
   return (
     <section className="mvp-panel" aria-labelledby="reports-title">
@@ -121,6 +161,30 @@ export function ReportsWorkbench() {
           </ul>
         ) : null}
       </article>
+
+      {campaignLaunchEnabled ? (
+        <article className="mvp-card">
+          <h2>Admin Coach Campaign Launch (Flagged)</h2>
+          <p className="mvp-muted">Feature flag: NEXT_PUBLIC_ADMIN_COACH_CAMPAIGN_LAUNCH_V1</p>
+          <div className="mvp-inline">
+            <input
+              value={campaignName}
+              onChange={(event) => setCampaignName(event.target.value)}
+              placeholder="Campaign name"
+              aria-label="Campaign name"
+            />
+            <select value={targetCluster} onChange={(event) => setTargetCluster(event.target.value)}>
+              <option value="over_fold">over_fold</option>
+              <option value="over_bluff">over_bluff</option>
+              <option value="missed_value">missed_value</option>
+            </select>
+            <button type="button" onClick={() => void handleLaunchCampaign()} disabled={launchingCampaign}>
+              {launchingCampaign ? 'Launching...' : 'Launch now'}
+            </button>
+          </div>
+          {campaignStatus ? <p className="mvp-muted">{campaignStatus}</p> : null}
+        </article>
+      ) : null}
 
       {error ? <p className="module-error-text">{error}</p> : null}
     </section>

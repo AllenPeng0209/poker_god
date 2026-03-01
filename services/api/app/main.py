@@ -23,6 +23,8 @@ from .schemas import (
     CoachCreateDrillRequest,
     CoachCreatePlanRequest,
     CoachCreatePlanResponse,
+    CoachCampaignCreateRequest,
+    CoachCampaignCreateResponse,
     DrillCreateRequest,
     DrillCreateResponse,
     DrillListResponse,
@@ -47,6 +49,7 @@ from .services import (
     coach_create_drill_action,
     coach_create_plan_action,
     complete_practice_session,
+    create_coach_campaign,
     create_analyze_upload,
     create_drill,
     generate_zen_chat,
@@ -422,6 +425,12 @@ def coach_create_plan(payload: CoachCreatePlanRequest) -> CoachCreatePlanRespons
     if isinstance(result, str):
         return _error(409, "confirmation_required", result)
     return result
+
+
+@app.post("/api/admin/coach/campaigns", response_model=CoachCampaignCreateResponse)
+def admin_create_coach_campaign(payload: CoachCampaignCreateRequest) -> CoachCampaignCreateResponse:
+    supabase = get_supabase_client()
+    return create_coach_campaign(supabase, payload)
 
 
 @app.post("/api/events", response_model=AnalyticsIngestResponse)
