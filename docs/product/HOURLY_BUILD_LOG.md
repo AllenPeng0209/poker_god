@@ -30,7 +30,8 @@
 - Kill switch: disable flag
 
 ### Push result
-- pending
+- success: `git push -u origin pg/hourly-20260301-1446-mobile-conversion-blockers`
+- PR URL: https://github.com/AllenPeng0209/poker_god/pull/new/pg/hourly-20260301-1446-mobile-conversion-blockers
 
 ### Blockers
 - none in local build/typecheck scope
