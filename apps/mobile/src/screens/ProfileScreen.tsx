@@ -4,6 +4,14 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 type AppLanguage = 'zh-TW' | 'zh-CN' | 'en-US';
 type LanguageOption = { key: AppLanguage; label: string };
 
+type MistakeClusterMobileItem = {
+  tag: string;
+  sharePct: number;
+  avgEvLossBb100: number;
+  riskLevel: 'high' | 'medium' | 'low';
+  suggestedCampaign: 'quick_drill' | 'homework_recovery' | 'coach_nudge';
+};
+
 type ProfileScreenProps = {
   language: AppLanguage;
   profileName: string;
@@ -29,6 +37,13 @@ type ProfileScreenProps = {
   onToggleSfx: () => void;
   onToggleAiVoiceAssist: () => void;
   onTogglePoliteMode: () => void;
+  showMistakeClustersRadar?: boolean;
+  mistakeClustersWindowDays?: 7 | 30 | 90;
+  mistakeClustersLoading?: boolean;
+  mistakeClustersError?: string | null;
+  mistakeClustersItems?: MistakeClusterMobileItem[];
+  mistakeClustersGeneratedAt?: string;
+  onRefreshMistakeClusters?: () => void;
 };
 
 function l(language: AppLanguage, zhTw: string, zhCn: string, en: string): string {
@@ -72,8 +87,28 @@ export function ProfileScreen({
   onToggleSfx,
   onToggleAiVoiceAssist,
   onTogglePoliteMode,
+  showMistakeClustersRadar = false,
+  mistakeClustersWindowDays = 30,
+  mistakeClustersLoading = false,
+  mistakeClustersError = null,
+  mistakeClustersItems = [],
+  mistakeClustersGeneratedAt,
+  onRefreshMistakeClusters,
 }: ProfileScreenProps) {
   const wr = winRate(handsPlayed, handsWon);
+  const topMistakeClusters = mistakeClustersItems.slice(0, 3);
+
+  const riskLabel = (riskLevel: 'high' | 'medium' | 'low') => {
+    if (riskLevel === 'high') return l(language, '高風險', '高风险', 'High risk');
+    if (riskLevel === 'medium') return l(language, '中風險', '中风险', 'Medium risk');
+    return l(language, '低風險', '低风险', 'Low risk');
+  };
+
+  const campaignLabel = (campaign: 'quick_drill' | 'homework_recovery' | 'coach_nudge') => {
+    if (campaign === 'quick_drill') return l(language, '快鑽訓練', '快钻训练', 'Quick Drill');
+    if (campaign === 'homework_recovery') return l(language, '作業召回', '作业召回', 'Homework Recovery');
+    return l(language, '教練提醒', '教练提醒', 'Coach Nudge');
+  };
 
   return (
     <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -149,6 +184,40 @@ export function ProfileScreen({
           <Text style={styles.actionBtnText}>{l(language, '管理訂閱', '管理订阅', 'Manage Subscription')}</Text>
         </Pressable>
       </View>
+
+      {showMistakeClustersRadar ? (
+        <View style={styles.card}>
+          <View style={styles.cardHeaderRow}>
+            <Text style={styles.cardTitle}>{l(language, '錯誤聚類雷達（Mobile）', '错误聚类雷达（Mobile）', 'Mistake Clusters Radar (Mobile)')}</Text>
+            <Pressable onPress={onRefreshMistakeClusters} style={({ pressed }) => [styles.refreshBtn, pressed && styles.pressed]}>
+              <Text style={styles.refreshBtnText}>{l(language, '刷新', '刷新', 'Refresh')}</Text>
+            </Pressable>
+          </View>
+          <Text style={styles.cardHint}>{l(language, `窗口：近 ${mistakeClustersWindowDays} 天`, `窗口：近 ${mistakeClustersWindowDays} 天`, `Window: last ${mistakeClustersWindowDays} days`)}</Text>
+          {mistakeClustersGeneratedAt ? <Text style={styles.cardHint}>{l(language, `生成：${mistakeClustersGeneratedAt}`, `生成：${mistakeClustersGeneratedAt}`, `Generated: ${mistakeClustersGeneratedAt}`)}</Text> : null}
+          {mistakeClustersLoading ? <Text style={styles.cardHint}>{l(language, '載入中…', '加载中…', 'Loading…')}</Text> : null}
+          {!mistakeClustersLoading && mistakeClustersError ? <Text style={styles.errorText}>{mistakeClustersError}</Text> : null}
+          {!mistakeClustersLoading && !mistakeClustersError && topMistakeClusters.length === 0 ? (
+            <Text style={styles.cardHint}>{l(language, '暫無聚類資料', '暂无聚类数据', 'No cluster data yet')}</Text>
+          ) : null}
+          {!mistakeClustersLoading && !mistakeClustersError && topMistakeClusters.map((cluster) => (
+            <View key={cluster.tag} style={styles.clusterRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.clusterTag}>{cluster.tag}</Text>
+                <Text style={styles.cardHint}>{riskLabel(cluster.riskLevel)} · {campaignLabel(cluster.suggestedCampaign)}</Text>
+              </View>
+              <View style={styles.clusterMetricGroup}>
+                <Text style={styles.clusterMetric}>{cluster.sharePct.toFixed(1)}%</Text>
+                <Text style={styles.clusterMetricSub}>{l(language, '占比', '占比', 'Share')}</Text>
+              </View>
+              <View style={styles.clusterMetricGroup}>
+                <Text style={styles.clusterMetric}>{cluster.avgEvLossBb100.toFixed(2)}</Text>
+                <Text style={styles.clusterMetricSub}>EV bb/100</Text>
+              </View>
+            </View>
+          ))}
+        </View>
+      ) : null}
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>{l(language, '通用設定', '通用设置', 'General Settings')}</Text>
@@ -291,6 +360,61 @@ const styles = StyleSheet.create({
     color: '#e6f7ff',
     fontSize: 15,
     fontWeight: '900',
+  },
+  cardHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 8,
+  },
+  refreshBtn: {
+    borderWidth: 1,
+    borderColor: '#86b9ff',
+    borderRadius: 8,
+    backgroundColor: '#214d76',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  refreshBtnText: {
+    color: '#f1f8ff',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  clusterRow: {
+    borderWidth: 1,
+    borderColor: '#33576a',
+    borderRadius: 10,
+    backgroundColor: '#112f3f',
+    paddingHorizontal: 8,
+    paddingVertical: 7,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  clusterTag: {
+    color: '#f6f3d3',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  clusterMetricGroup: {
+    minWidth: 64,
+    alignItems: 'flex-end',
+  },
+  clusterMetric: {
+    color: '#f3fbff',
+    fontSize: 13,
+    fontWeight: '900',
+    fontFamily: 'monospace',
+  },
+  clusterMetricSub: {
+    color: '#9fc3d3',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  errorText: {
+    color: '#ffb8b8',
+    fontSize: 11,
+    fontWeight: '700',
   },
   leakLabel: {
     color: '#f5e8b1',

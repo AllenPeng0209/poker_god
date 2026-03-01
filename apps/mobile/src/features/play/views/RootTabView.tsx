@@ -1,6 +1,8 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import React from 'react';
+
+import { getMobileCoachMistakeClusters, type MobileCoachMistakeClusterItem } from '../services/coachMistakeClustersApi';
 import { SafeAreaView, View } from 'react-native';
 
 import { BottomTabBar } from '../../../components/navigation/BottomTabBar';
@@ -95,6 +97,38 @@ export function RootTabView(props: RootTabViewProps) {
     setPoliteMode,
     setSfxEnabled,
   } = props;
+
+  const mobileMistakeClustersFlag = process.env.EXPO_PUBLIC_MOBILE_MISTAKE_CLUSTERS_V1 === '1';
+  const [mistakeClustersWindowDays] = React.useState<7 | 30 | 90>(30);
+  const [mistakeClustersLoading, setMistakeClustersLoading] = React.useState(false);
+  const [mistakeClustersError, setMistakeClustersError] = React.useState<string | null>(null);
+  const [mistakeClustersItems, setMistakeClustersItems] = React.useState<MobileCoachMistakeClusterItem[]>([]);
+  const [mistakeClustersGeneratedAt, setMistakeClustersGeneratedAt] = React.useState<string>('');
+
+  const loadMistakeClusters = React.useCallback(async () => {
+    if (!mobileMistakeClustersFlag) {
+      return;
+    }
+    setMistakeClustersLoading(true);
+    setMistakeClustersError(null);
+    try {
+      const response = await getMobileCoachMistakeClusters(mistakeClustersWindowDays, 5);
+      setMistakeClustersItems(response.items ?? []);
+      setMistakeClustersGeneratedAt(response.generatedAt ?? '');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load mistake clusters';
+      setMistakeClustersError(message);
+    } finally {
+      setMistakeClustersLoading(false);
+    }
+  }, [mistakeClustersWindowDays, mobileMistakeClustersFlag]);
+
+  React.useEffect(() => {
+    if (rootTab !== 'profile' || !mobileMistakeClustersFlag) {
+      return;
+    }
+    void loadMistakeClusters();
+  }, [rootTab, mobileMistakeClustersFlag, loadMistakeClusters]);
 
   if (rootTab === 'learn') {
     return (
@@ -199,6 +233,15 @@ export function RootTabView(props: RootTabViewProps) {
                 onToggleSfx={() => setSfxEnabled((v) => !v)}
                 onToggleAiVoiceAssist={() => setAiVoiceAssistEnabled((v) => !v)}
                 onTogglePoliteMode={() => setPoliteMode((v) => !v)}
+                showMistakeClustersRadar={mobileMistakeClustersFlag}
+                mistakeClustersWindowDays={mistakeClustersWindowDays}
+                mistakeClustersLoading={mistakeClustersLoading}
+                mistakeClustersError={mistakeClustersError}
+                mistakeClustersItems={mistakeClustersItems}
+                mistakeClustersGeneratedAt={mistakeClustersGeneratedAt}
+                onRefreshMistakeClusters={() => {
+                  void loadMistakeClusters();
+                }}
               />
             </View>
             <BottomTabBar
