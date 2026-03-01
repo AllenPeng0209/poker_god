@@ -23,6 +23,7 @@ from .schemas import (
     CoachCreateDrillRequest,
     CoachCreatePlanRequest,
     CoachCreatePlanResponse,
+    CoachConversionBlockersResponse,
     DrillCreateRequest,
     DrillCreateResponse,
     DrillListResponse,
@@ -42,6 +43,7 @@ from .schemas import (
     ZenChatResponse,
 )
 from .services import (
+    build_coach_conversion_blockers,
     build_leak_report,
     coach_chat,
     coach_create_drill_action,
@@ -396,6 +398,13 @@ def reports_leaks(window_days: int = Query(default=30, alias="windowDays")) -> L
     supabase = get_supabase_client()
     parsed_window = 7 if window_days == 7 else 90 if window_days == 90 else 30
     return build_leak_report(supabase, parsed_window)
+
+
+@app.get("/api/admin/coach/conversion-blockers", response_model=CoachConversionBlockersResponse)
+def admin_coach_conversion_blockers(window_days: int = Query(default=30, alias="windowDays")) -> CoachConversionBlockersResponse:
+    supabase = get_supabase_client()
+    parsed_window = 7 if window_days == 7 else 90 if window_days == 90 else 30
+    return build_coach_conversion_blockers(supabase, parsed_window)
 
 
 @app.post("/api/coach/chat", response_model=CoachChatResponse)

@@ -1,7 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
-import React from 'react';
-import { SafeAreaView, View } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { SafeAreaView, Text, TouchableOpacity, View } from 'react-native';
 
 import { BottomTabBar } from '../../../components/navigation/BottomTabBar';
 import type { RootTab, RootTabItem } from '../../../navigation/rootTabs';
@@ -11,6 +11,7 @@ import { ReviewScreen } from '../../../screens/ReviewScreen';
 import type { HandRecordDetail, HandRecordSummary, LocalProfile } from '../../../storage/localDb';
 import type { ProgressState } from '../../../types/poker';
 
+import { fetchCoachConversionBlockers, type MobileCoachConversionBlockersResponse } from '../services/coachConversionBlockersApi';
 import * as Play from '../index';
 
 const {
@@ -95,6 +96,60 @@ export function RootTabView(props: RootTabViewProps) {
     setPoliteMode,
     setSfxEnabled,
   } = props;
+
+  const mobileCoachConversionBlockersEnabled = process.env.EXPO_PUBLIC_MOBILE_COACH_CONVERSION_BLOCKERS_V1 === '1';
+  const [conversionBlockersLoading, setConversionBlockersLoading] = useState(false);
+  const [conversionBlockersError, setConversionBlockersError] = useState('');
+  const [conversionBlockersData, setConversionBlockersData] = useState<MobileCoachConversionBlockersResponse | null>(null);
+
+  const refreshConversionBlockers = useMemo(() => async () => {
+    if (!mobileCoachConversionBlockersEnabled) return;
+    setConversionBlockersLoading(true);
+    setConversionBlockersError('');
+    try {
+      const data = await fetchCoachConversionBlockers(30);
+      setConversionBlockersData(data);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Failed to load conversion blockers';
+      setConversionBlockersError(msg);
+    } finally {
+      setConversionBlockersLoading(false);
+    }
+  }, [mobileCoachConversionBlockersEnabled]);
+
+  useEffect(() => {
+    if (rootTab !== 'profile' || !mobileCoachConversionBlockersEnabled) {
+      return;
+    }
+    void refreshConversionBlockers();
+  }, [mobileCoachConversionBlockersEnabled, refreshConversionBlockers, rootTab]);
+
+  const coachConversionBlockersPanel = mobileCoachConversionBlockersEnabled ? (
+    <View style={{ borderWidth: 1, borderColor: '#3a6273', borderRadius: 12, backgroundColor: 'rgba(10, 30, 41, 0.9)', padding: 10, gap: 6 }}>
+      <Text style={{ color: '#e6f7ff', fontSize: 15, fontWeight: '900' }}>{l(appLanguage, 'Coach 轉化阻塞 (Mobile)', 'Coach 转化阻塞 (Mobile)', 'Coach Conversion Blockers (Mobile)')}</Text>
+      {conversionBlockersLoading ? (
+        <Text style={{ color: '#b8d6e3', fontSize: 12, lineHeight: 17 }}>{l(appLanguage, '讀取中...', '读取中...', 'Loading...')}</Text>
+      ) : conversionBlockersError ? (
+        <Text style={{ color: '#b8d6e3', fontSize: 12, lineHeight: 17 }}>{conversionBlockersError}</Text>
+      ) : conversionBlockersData ? (
+        <>
+          <Text style={{ color: '#b8d6e3', fontSize: 12, lineHeight: 17 }}>{l(appLanguage, `Attach: ${conversionBlockersData.attachRatePct}% · Completion: ${conversionBlockersData.completionRatePct}%`, `Attach: ${conversionBlockersData.attachRatePct}% · Completion: ${conversionBlockersData.completionRatePct}%`, `Attach: ${conversionBlockersData.attachRatePct}% · Completion: ${conversionBlockersData.completionRatePct}%`)}</Text>
+          <Text style={{ color: '#b8d6e3', fontSize: 12, lineHeight: 17 }}>{l(appLanguage, `最大阻塞: ${conversionBlockersData.biggestBlockerStage}`, `最大阻塞: ${conversionBlockersData.biggestBlockerStage}`, `Top blocker: ${conversionBlockersData.biggestBlockerStage}`)}</Text>
+          {(conversionBlockersData.items || []).slice(0, 3).map((item) => (
+            <Text key={item.stageKey} style={{ color: '#b8d6e3', fontSize: 12, lineHeight: 17 }}>{`• ${item.stageLabel}: ${item.dropoffPct}%`}</Text>
+          ))}
+        </>
+      ) : (
+        <Text style={{ color: '#b8d6e3', fontSize: 12, lineHeight: 17 }}>{l(appLanguage, '暫無資料', '暂无数据', 'No data yet')}</Text>
+      )}
+      <TouchableOpacity
+        onPress={() => { void refreshConversionBlockers(); }}
+        style={{ marginTop: 6, borderWidth: 1, borderColor: '#7fffe1', borderRadius: 8, backgroundColor: '#1f5c54', paddingHorizontal: 10, paddingVertical: 6, alignSelf: 'flex-start' }}
+      >
+        <Text style={{ color: '#f4fffe', fontSize: 12, fontWeight: '800' }}>{l(appLanguage, '手動刷新', '手动刷新', 'Refresh')}</Text>
+      </TouchableOpacity>
+    </View>
+  ) : null;
 
   if (rootTab === 'learn') {
     return (
@@ -199,6 +254,7 @@ export function RootTabView(props: RootTabViewProps) {
                 onToggleSfx={() => setSfxEnabled((v) => !v)}
                 onToggleAiVoiceAssist={() => setAiVoiceAssistEnabled((v) => !v)}
                 onTogglePoliteMode={() => setPoliteMode((v) => !v)}
+                extensionPanel={coachConversionBlockersPanel}
               />
             </View>
             <BottomTabBar

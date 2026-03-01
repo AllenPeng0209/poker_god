@@ -382,6 +382,25 @@ class CoachCreatePlanResponse(BaseModel):
     plan: WeeklyPlan
 
 
+class CoachConversionBlockerItem(BaseModel):
+    stageKey: Literal["coach_message_sent", "coach_action_executed", "drill_started", "drill_completed"]
+    stageLabel: str
+    sessions: int
+    dropoffPct: float
+    impactScore: float
+    recommendation: str
+
+
+class CoachConversionBlockersResponse(BaseModel):
+    requestId: str
+    windowDays: Literal[7, 30, 90]
+    generatedAt: str
+    attachRatePct: float
+    completionRatePct: float
+    biggestBlockerStage: str
+    items: list[CoachConversionBlockerItem]
+
+
 AnalyticsEventName = Literal[
     "study_node_opened",
     "drill_started",

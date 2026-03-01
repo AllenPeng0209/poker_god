@@ -25,6 +25,8 @@ from .schemas import (
     CoachCreateDrillRequest,
     CoachCreatePlanRequest,
     CoachCreatePlanResponse,
+    CoachConversionBlockerItem,
+    CoachConversionBlockersResponse,
     CoachSection,
     Drill,
     DrillCreateRequest,
@@ -1871,6 +1873,81 @@ def build_leak_report(supabase: Client, window_days: int) -> LeakReportResponse:
         requestId=rid,
         windowDays=7 if window_days == 7 else 90 if window_days == 90 else 30,
         generatedAt=now_iso(),
+        items=items,
+    )
+
+
+def build_coach_conversion_blockers(supabase: Client, window_days: int) -> CoachConversionBlockersResponse:
+    rid = request_id()
+    parsed_window = 7 if window_days == 7 else 90 if window_days == 90 else 30
+    cutoff = datetime.now(UTC) - timedelta(days=parsed_window)
+
+    rows = (
+        supabase.table("pg_mvp_events")
+        .select("session_id,event_name,event_time")
+        .gte("event_time", cutoff.isoformat())
+        .in_("event_name", ["coach_message_sent", "coach_action_executed", "drill_started", "drill_completed"])
+        .execute()
+        .data
+        or []
+    )
+
+    stage_meta: list[tuple[str, str, str]] = [
+        ("coach_message_sent", "Coach Message", "Improve first-response quality and suggested CTA clarity."),
+        ("coach_action_executed", "Coach Action", "Reduce confirmation friction and prefill drill defaults."),
+        ("drill_started", "Drill Started", "Launch one-tap deep link from coach card to drill start."),
+        ("drill_completed", "Drill Completed", "Add progress nudges and recover interrupted sessions."),
+    ]
+
+    sessions_by_stage: dict[str, set[str]] = {key: set() for key, _, _ in stage_meta}
+    for row in rows:
+        session_id = str(row.get("session_id") or "").strip()
+        event_name = str(row.get("event_name") or "").strip()
+        if not session_id or event_name not in sessions_by_stage:
+            continue
+        sessions_by_stage[event_name].add(session_id)
+
+    counts = {key: len(value) for key, value in sessions_by_stage.items()}
+    previous = counts["coach_message_sent"]
+    items: list[CoachConversionBlockerItem] = []
+    biggest_blocker_stage = "coach_message_sent"
+    biggest_blocker_score = -1.0
+
+    for stage_key, stage_label, recommendation in stage_meta:
+        current = counts[stage_key]
+        if previous <= 0:
+            dropoff_pct = 0.0
+        else:
+            dropoff_pct = round(max(0.0, ((previous - current) / previous) * 100.0), 1)
+        impact_score = round(dropoff_pct * max(1, previous), 1)
+        items.append(
+            CoachConversionBlockerItem(
+                stageKey=stage_key,
+                stageLabel=stage_label,
+                sessions=current,
+                dropoffPct=dropoff_pct,
+                impactScore=impact_score,
+                recommendation=recommendation,
+            ),
+        )
+        if impact_score > biggest_blocker_score:
+            biggest_blocker_score = impact_score
+            biggest_blocker_stage = stage_key
+        previous = max(current, 1)
+
+    message_sessions = max(counts["coach_message_sent"], 1)
+    action_sessions = counts["coach_action_executed"]
+    completed_sessions = counts["drill_completed"]
+    attach_rate_pct = round((action_sessions / message_sessions) * 100.0, 1)
+    completion_rate_pct = round((completed_sessions / message_sessions) * 100.0, 1)
+
+    return CoachConversionBlockersResponse(
+        requestId=rid,
+        windowDays=parsed_window,
+        generatedAt=now_iso(),
+        attachRatePct=attach_rate_pct,
+        completionRatePct=completion_rate_pct,
+        biggestBlockerStage=biggest_blocker_stage,
         items=items,
     )
 

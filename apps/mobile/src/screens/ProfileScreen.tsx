@@ -29,6 +29,7 @@ type ProfileScreenProps = {
   onToggleSfx: () => void;
   onToggleAiVoiceAssist: () => void;
   onTogglePoliteMode: () => void;
+  extensionPanel?: React.ReactNode;
 };
 
 function l(language: AppLanguage, zhTw: string, zhCn: string, en: string): string {
@@ -72,6 +73,7 @@ export function ProfileScreen({
   onToggleSfx,
   onToggleAiVoiceAssist,
   onTogglePoliteMode,
+  extensionPanel,
 }: ProfileScreenProps) {
   const wr = winRate(handsPlayed, handsWon);
 
@@ -149,6 +151,8 @@ export function ProfileScreen({
           <Text style={styles.actionBtnText}>{l(language, '管理訂閱', '管理订阅', 'Manage Subscription')}</Text>
         </Pressable>
       </View>
+
+      {extensionPanel}
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>{l(language, '通用設定', '通用设置', 'General Settings')}</Text>
