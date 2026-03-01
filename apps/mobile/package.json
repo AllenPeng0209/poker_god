@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "main": "index.ts",
   "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
     "start": "expo start",
     "build": "eas build --platform all",
     "build:android": "eas build --platform android",

@@ -6,6 +6,8 @@
     "install:deps": "python3 -m pip install -r requirements.txt",
     "dev": "set -a; [ -f .env ] && . ./.env; set +a; python3 -m uvicorn app.main:app --reload --host ${HOST:-0.0.0.0} --port ${PORT:-3001}",
     "build": "python3 -m compileall app",
-    "start": "set -a; [ -f .env ] && . ./.env; set +a; python3 -m uvicorn app.main:app --host ${HOST:-0.0.0.0} --port ${PORT:-3001}"
+    "start": "set -a; [ -f .env ] && . ./.env; set +a; python3 -m uvicorn app.main:app --host ${HOST:-0.0.0.0} --port ${PORT:-3001}",
+    "test:us001": "PYTHONPATH=. python3 -m unittest discover -s tests -p test_validation_error_contract.py -q",
+    "quality:us001": "PYTHONPATH=. python3 scripts/run_us001_quality_gate.py"
   }
 }

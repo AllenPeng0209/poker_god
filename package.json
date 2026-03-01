@@ -14,6 +14,7 @@
     "build:mobile": "npm --workspace @poker-god/mobile run build",
     "build:web": "npm --workspace @poker-god/web run build",
     "build:api": "npm --workspace @poker-god/api run build",
+    "quality:us001": "npm --workspace @poker-god/web run typecheck && npm --workspace @poker-god/mobile run typecheck && npm --workspace @poker-god/api run quality:us001",
     "ralph": "bash scripts/ralph/ralph.sh",
     "ralph:amp": "bash scripts/ralph/ralph.sh --tool amp",
     "ralph:claude": "bash scripts/ralph/ralph.sh --tool claude",
