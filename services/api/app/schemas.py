@@ -297,6 +297,24 @@ class AnalyzeHandsResponse(BaseModel):
     hands: list[AnalyzedHand]
 
 
+class MistakeSummaryItem(BaseModel):
+    cluster: str
+    sampleSize: int
+    averageEvLossBb100: float
+    totalEvLossBb100: float
+    topStreets: list[str]
+    topPositions: list[str]
+    recommendation: str
+
+
+class MistakeSummaryResponse(BaseModel):
+    requestId: str
+    windowDays: Literal[7, 30, 90]
+    generatedAt: str
+    totalHands: int
+    items: list[MistakeSummaryItem]
+
+
 LeakConfidence = Literal["high", "medium", "low"]
 
 

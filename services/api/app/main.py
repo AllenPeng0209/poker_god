@@ -29,6 +29,7 @@ from .schemas import (
     ErrorBody,
     HealthResponse,
     LeakReportResponse,
+    MistakeSummaryResponse,
     PracticeCompleteSessionResponse,
     PracticeSessionStartRequest,
     PracticeSessionStartResponse,
@@ -43,6 +44,7 @@ from .schemas import (
 )
 from .services import (
     build_leak_report,
+    build_mistakes_summary,
     coach_chat,
     coach_create_drill_action,
     coach_create_plan_action,
@@ -389,6 +391,16 @@ def analyze_list_hands(
 ) -> AnalyzeHandsResponse:
     supabase = get_supabase_client()
     return list_analyze_hands(supabase, upload_id, sort_by, position, tag)
+
+
+@app.get("/api/coach/mistakes/summary", response_model=MistakeSummaryResponse)
+def coach_mistakes_summary(
+    window_days: int = Query(default=30, alias="windowDays"),
+    limit: int = Query(default=5),
+) -> MistakeSummaryResponse:
+    supabase = get_supabase_client()
+    parsed_window = 7 if window_days == 7 else 90 if window_days == 90 else 30
+    return build_mistakes_summary(supabase, parsed_window, limit)
 
 
 @app.get("/api/reports/leaks", response_model=LeakReportResponse)

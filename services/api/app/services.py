@@ -33,6 +33,8 @@ from .schemas import (
     DrillListResponse,
     LeakReportItem,
     LeakReportResponse,
+    MistakeSummaryItem,
+    MistakeSummaryResponse,
     PracticeAnswerFeedback,
     PracticeCompleteSessionResponse,
     PracticeQuestion,
@@ -1794,6 +1796,88 @@ def list_analyze_hands(
         for row in rows
     ]
     return AnalyzeHandsResponse(requestId=rid, hands=hands)
+
+
+def build_mistakes_summary(supabase: Client, window_days: int, limit: int = 5) -> MistakeSummaryResponse:
+    rid = request_id()
+    cutoff = datetime.now(UTC) - timedelta(days=window_days)
+    rows = (
+        supabase.table("pg_mvp_analyzed_hands")
+        .select("*")
+        .gte("played_at", cutoff.isoformat())
+        .order("ev_loss_bb100", desc=True)
+        .execute()
+        .data
+        or []
+    )
+
+    grouped: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        tags = list(row.get("tags") or [])
+        if not tags:
+            tags = ["uncategorized"]
+        ev_loss = _safe_float(row.get("ev_loss_bb100"))
+        street = str(row.get("street") or "unknown")
+        position = str(row.get("position") or "unknown")
+
+        for tag in tags:
+            key = str(tag).strip() or "uncategorized"
+            if key not in grouped:
+                grouped[key] = {
+                    "sample_size": 0,
+                    "ev_total": 0.0,
+                    "street_count": defaultdict(int),
+                    "position_count": defaultdict(int),
+                }
+            grouped[key]["sample_size"] += 1
+            grouped[key]["ev_total"] += ev_loss
+            grouped[key]["street_count"][street] += 1
+            grouped[key]["position_count"][position] += 1
+
+    def recommendation(cluster: str) -> str:
+        if cluster == "over_bluff":
+            return "压缩低阻断诈唬组合，优先保留具备坚果阻断的半诈唬。"
+        if cluster == "under_bluff":
+            return "补足可盈利 bluff 组合，尤其是 turn 与 river 的 blocker 候选。"
+        if cluster == "missed_value":
+            return "增加薄价值下注频率，避免可盈利价值牌被动过牌。"
+        if cluster == "over_fold":
+            return "扩大 bluff-catch 防守阈值，降低中等强度牌过度弃牌。"
+        if cluster == "size_mismatch":
+            return "统一尺度策略，按纹理拆分小注/中注/超池下注模板。"
+        return "先补样本并按 street+position 复盘，再决定 drill 优先级。"
+
+    items: list[MistakeSummaryItem] = []
+    for cluster, value in grouped.items():
+        sample_size = int(value["sample_size"])
+        ev_total = float(value["ev_total"])
+        avg_ev_loss = ev_total / sample_size if sample_size else 0.0
+
+        street_count = value["street_count"]
+        top_streets = [name for name, _ in sorted(street_count.items(), key=lambda pair: pair[1], reverse=True)[:2]]
+        position_count = value["position_count"]
+        top_positions = [name for name, _ in sorted(position_count.items(), key=lambda pair: pair[1], reverse=True)[:2]]
+
+        items.append(
+            MistakeSummaryItem(
+                cluster=cluster,
+                sampleSize=sample_size,
+                averageEvLossBb100=round(avg_ev_loss, 1),
+                totalEvLossBb100=round(ev_total, 1),
+                topStreets=top_streets,
+                topPositions=top_positions,
+                recommendation=recommendation(cluster),
+            ),
+        )
+
+    items = sorted(items, key=lambda item: (item.totalEvLossBb100, item.sampleSize), reverse=True)[: max(1, min(limit, 20))]
+    return MistakeSummaryResponse(
+        requestId=rid,
+        windowDays=7 if window_days == 7 else 90 if window_days == 90 else 30,
+        generatedAt=now_iso(),
+        totalHands=len(rows),
+        items=items,
+    )
 
 
 def build_leak_report(supabase: Client, window_days: int) -> LeakReportResponse:
