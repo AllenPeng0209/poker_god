@@ -7,6 +7,7 @@ from threading import Lock
 from time import perf_counter
 
 from fastapi import BackgroundTasks, FastAPI, Query, Request, Response
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -217,6 +218,19 @@ def runtime_error_handler(request: Request, exc: RuntimeError) -> JSONResponse:
     if "Supabase credentials missing" in message:
         return _error(500, "supabase_config_error", message, rid)
     return _error(500, "internal_error", message, rid)
+
+
+@app.exception_handler(RequestValidationError)
+def validation_error_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+    rid = _request_id_from_request(request)
+    first = exc.errors()[0] if exc.errors() else None
+    if first:
+        location = ".".join(str(part) for part in first.get("loc", []) if part != "body")
+        reason = str(first.get("msg") or "invalid request payload")
+        message = f"{location}: {reason}" if location else reason
+    else:
+        message = "invalid request payload"
+    return _error(422, "invalid_request_payload", message, rid)
 
 
 @app.get("/health", response_model=HealthResponse)
