@@ -30,6 +30,29 @@ type ApiErrorResponse = {
   requestId?: string;
 };
 
+export type CoachMistakeClusterItem = {
+  tag: string;
+  sampleSize: number;
+  avgEvLossBb100: number;
+  sharePct: number;
+  repeatSessionRatePct: number;
+  riskLevel: 'high' | 'medium' | 'low';
+  suggestedCampaign: 'quick_drill' | 'homework_recovery' | 'coach_nudge';
+};
+
+export type CoachMistakeClustersResponse = {
+  requestId: string;
+  windowDays: 7 | 30 | 90;
+  generatedAt: string;
+  summary: {
+    totalHands: number;
+    distinctSessions: number;
+    biggestClusterTag?: string | null;
+    biggestClusterSharePct: number;
+  };
+  items: CoachMistakeClusterItem[];
+};
+
 const DEFAULT_API_BASE = 'http://localhost:3001';
 const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL ?? DEFAULT_API_BASE).replace(/\/+$/, '');
 const PUBLIC_API_KEY = (process.env.NEXT_PUBLIC_API_KEY ?? '').trim();
@@ -154,6 +177,12 @@ export const apiClient = {
 
   async getLeakReport(windowDays: 7 | 30 | 90): Promise<LeakReportResponse> {
     return requestJson<LeakReportResponse>(`/api/reports/leaks?windowDays=${windowDays}`);
+  },
+
+  async getCoachMistakeClusters(windowDays: 7 | 30 | 90, limit = 5): Promise<CoachMistakeClustersResponse> {
+    return requestJson<CoachMistakeClustersResponse>(
+      `/api/admin/coach/mistake-clusters?windowDays=${windowDays}&limit=${limit}`,
+    );
   },
 
   async zenChat(input: ZenChatRequest): Promise<ZenChatResponse> {

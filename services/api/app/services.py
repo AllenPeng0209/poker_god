@@ -25,6 +25,9 @@ from .schemas import (
     CoachCreateDrillRequest,
     CoachCreatePlanRequest,
     CoachCreatePlanResponse,
+    CoachMistakeClusterItem,
+    CoachMistakeClustersResponse,
+    CoachMistakeClustersSummary,
     CoachSection,
     Drill,
     DrillCreateRequest,
@@ -1872,6 +1875,86 @@ def build_leak_report(supabase: Client, window_days: int) -> LeakReportResponse:
         windowDays=7 if window_days == 7 else 90 if window_days == 90 else 30,
         generatedAt=now_iso(),
         items=items,
+    )
+
+
+def build_coach_mistake_clusters(supabase: Client, window_days: int, limit: int = 5) -> CoachMistakeClustersResponse:
+    rid = request_id()
+    cutoff = datetime.now(UTC) - timedelta(days=window_days)
+    rows = (
+        supabase.table("pg_mvp_analyzed_hands")
+        .select("ev_loss_bb100,tags,upload_id")
+        .gte("played_at", cutoff.isoformat())
+        .execute()
+        .data
+        or []
+    )
+
+    grouped: dict[str, dict[str, Any]] = {}
+    total_tagged_hands = 0
+    distinct_sessions: set[str] = set()
+    for row in rows:
+        upload_id = str(row.get("upload_id") or "")
+        if upload_id:
+            distinct_sessions.add(upload_id)
+        tags = [str(tag).strip() for tag in (row.get("tags") or []) if str(tag).strip()]
+        if not tags:
+            continue
+        ev_loss = _safe_float(row.get("ev_loss_bb100"))
+        total_tagged_hands += 1
+        for tag in tags:
+            bucket = grouped.setdefault(tag, {"count": 0, "ev_total": 0.0, "sessions": set()})
+            bucket["count"] += 1
+            bucket["ev_total"] += ev_loss
+            if upload_id:
+                bucket["sessions"].add(upload_id)
+
+    items: list[CoachMistakeClusterItem] = []
+    for tag, value in grouped.items():
+        count = _safe_int(value["count"])
+        if count <= 0:
+            continue
+        avg_ev_loss = _safe_float(value["ev_total"]) / count
+        share_pct = (count / max(total_tagged_hands, 1)) * 100
+        repeat_session_rate_pct = (
+            len(value["sessions"]) / max(len(distinct_sessions), 1) * 100 if distinct_sessions else 0.0
+        )
+
+        risk_level: str = "low"
+        suggested_campaign: str = "coach_nudge"
+        if avg_ev_loss >= 20 or share_pct >= 30:
+            risk_level = "high"
+            suggested_campaign = "homework_recovery"
+        elif avg_ev_loss >= 12 or share_pct >= 18:
+            risk_level = "medium"
+            suggested_campaign = "quick_drill"
+
+        items.append(
+            CoachMistakeClusterItem(
+                tag=tag,
+                sampleSize=count,
+                avgEvLossBb100=round(avg_ev_loss, 1),
+                sharePct=round(share_pct, 1),
+                repeatSessionRatePct=round(repeat_session_rate_pct, 1),
+                riskLevel=risk_level,  # type: ignore[arg-type]
+                suggestedCampaign=suggested_campaign,  # type: ignore[arg-type]
+            ),
+        )
+
+    sorted_items = sorted(items, key=lambda item: (item.sharePct, item.avgEvLossBb100), reverse=True)[: max(1, min(limit, 10))]
+    biggest = sorted_items[0] if sorted_items else None
+
+    return CoachMistakeClustersResponse(
+        requestId=rid,
+        windowDays=7 if window_days == 7 else 90 if window_days == 90 else 30,
+        generatedAt=now_iso(),
+        summary=CoachMistakeClustersSummary(
+            totalHands=total_tagged_hands,
+            distinctSessions=len(distinct_sessions),
+            biggestClusterTag=biggest.tag if biggest else None,
+            biggestClusterSharePct=biggest.sharePct if biggest else 0.0,
+        ),
+        items=sorted_items,
     )
 
 

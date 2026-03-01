@@ -318,6 +318,31 @@ class LeakReportResponse(BaseModel):
     items: list[LeakReportItem]
 
 
+class CoachMistakeClusterItem(BaseModel):
+    tag: str
+    sampleSize: int
+    avgEvLossBb100: float
+    sharePct: float
+    repeatSessionRatePct: float
+    riskLevel: Literal["high", "medium", "low"]
+    suggestedCampaign: Literal["quick_drill", "homework_recovery", "coach_nudge"]
+
+
+class CoachMistakeClustersSummary(BaseModel):
+    totalHands: int
+    distinctSessions: int
+    biggestClusterTag: str | None = None
+    biggestClusterSharePct: float
+
+
+class CoachMistakeClustersResponse(BaseModel):
+    requestId: str
+    windowDays: Literal[7, 30, 90]
+    generatedAt: str
+    summary: CoachMistakeClustersSummary
+    items: list[CoachMistakeClusterItem]
+
+
 CoachModule = Literal["study", "practice", "analyze", "reports"]
 CoachMode = Literal["Explain", "Fix", "Drill", "Plan"]
 CoachActionType = Literal["create_drill", "create_plan"]
