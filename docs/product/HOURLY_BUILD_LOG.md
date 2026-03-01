@@ -18,7 +18,8 @@
 - `npm run build:web`
 
 ### Push result
-- Pending (execute after commit)
+- Success: `git push -u origin pg/hourly-20260301-0923-admin-priority-queue-web`
+- PR link: https://github.com/AllenPeng0209/poker_god/pull/new/pg/hourly-20260301-0923-admin-priority-queue-web
 
 ### Blockers
 - None for implementation.
