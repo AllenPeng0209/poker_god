@@ -20,6 +20,6 @@
 - Feature flag / rollout:
   - Backend-only rollout, no new FE flag required.
   - Deploy after applying Supabase migration `0003_pg_mvp_coach_homeworks.sql`.
-- Push result: pending
+- Push result: success (`git push -u origin pg/hourly-20260302-0630-us002-homework-lifecycle-api`)
 - Blockers: none
 - Next action: implement web admin + mobile lifecycle widgets using new homework APIs and capture UI evidence for US-002.
