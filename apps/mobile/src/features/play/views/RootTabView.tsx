@@ -1,6 +1,6 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { SafeAreaView, View } from 'react-native';
 
 import { BottomTabBar } from '../../../components/navigation/BottomTabBar';
@@ -8,6 +8,11 @@ import type { RootTab, RootTabItem } from '../../../navigation/rootTabs';
 import { LearnScreen } from '../../../screens/LearnScreen';
 import { ProfileScreen } from '../../../screens/ProfileScreen';
 import { ReviewScreen } from '../../../screens/ReviewScreen';
+import {
+  fetchHomeworkPriorityQueue,
+  type HomeworkPriorityQueueItem,
+  type HomeworkPriorityQueueSummary,
+} from '../../../services/homeworkPriorityQueueApi';
 import type { HandRecordDetail, HandRecordSummary, LocalProfile } from '../../../storage/localDb';
 import type { ProgressState } from '../../../types/poker';
 
@@ -26,6 +31,9 @@ const {
 } = Play;
 
 type AppLanguage = Play.AppLanguage;
+
+const MOBILE_HOMEWORK_PRIORITY_QUEUE_ENABLED =
+  process.env.EXPO_PUBLIC_MOBILE_HOMEWORK_PRIORITY_QUEUE_V1 === '1';
 
 type RootTabViewProps = {
   activeProfile: LocalProfile | null;
@@ -95,6 +103,37 @@ export function RootTabView(props: RootTabViewProps) {
     setPoliteMode,
     setSfxEnabled,
   } = props;
+
+  const [priorityQueueLoading, setPriorityQueueLoading] = useState(false);
+  const [priorityQueueError, setPriorityQueueError] = useState<string | null>(null);
+  const [priorityQueueGeneratedAt, setPriorityQueueGeneratedAt] = useState<string>('');
+  const [priorityQueueSummary, setPriorityQueueSummary] = useState<HomeworkPriorityQueueSummary | null>(null);
+  const [priorityQueueItems, setPriorityQueueItems] = useState<HomeworkPriorityQueueItem[]>([]);
+
+  const loadHomeworkPriorityQueue = async () => {
+    if (!MOBILE_HOMEWORK_PRIORITY_QUEUE_ENABLED) {
+      return;
+    }
+    setPriorityQueueLoading(true);
+    setPriorityQueueError(null);
+    try {
+      const response = await fetchHomeworkPriorityQueue(30);
+      setPriorityQueueSummary(response.summary);
+      setPriorityQueueItems(response.items.slice(0, 5));
+      setPriorityQueueGeneratedAt(response.generatedAt);
+    } catch (error) {
+      setPriorityQueueError(error instanceof Error ? error.message : 'Failed to load mobile homework priority queue');
+    } finally {
+      setPriorityQueueLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (rootTab !== 'profile' || !MOBILE_HOMEWORK_PRIORITY_QUEUE_ENABLED) {
+      return;
+    }
+    void loadHomeworkPriorityQueue();
+  }, [rootTab]);
 
   if (rootTab === 'learn') {
     return (
@@ -192,6 +231,15 @@ export function RootTabView(props: RootTabViewProps) {
                 sfxEnabled={sfxEnabled}
                 aiVoiceAssistEnabled={aiVoiceAssistEnabled}
                 politeMode={politeMode}
+                mobileHomeworkPriorityQueueEnabled={MOBILE_HOMEWORK_PRIORITY_QUEUE_ENABLED}
+                mobileHomeworkPriorityQueueLoading={priorityQueueLoading}
+                mobileHomeworkPriorityQueueError={priorityQueueError}
+                mobileHomeworkPriorityQueueGeneratedAt={priorityQueueGeneratedAt}
+                mobileHomeworkPriorityQueueSummary={priorityQueueSummary}
+                mobileHomeworkPriorityQueueItems={priorityQueueItems}
+                onRefreshHomeworkPriorityQueue={() => {
+                  void loadHomeworkPriorityQueue();
+                }}
                 onChangeLanguage={(language) => {
                   setAppLanguage(language);
                   setNote(t(language, 'note_language_switched', { language: appLanguageLabels[language] }));

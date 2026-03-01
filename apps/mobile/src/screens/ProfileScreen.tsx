@@ -25,6 +25,25 @@ type ProfileScreenProps = {
   sfxEnabled: boolean;
   aiVoiceAssistEnabled: boolean;
   politeMode: boolean;
+  mobileHomeworkPriorityQueueEnabled?: boolean;
+  mobileHomeworkPriorityQueueLoading?: boolean;
+  mobileHomeworkPriorityQueueError?: string | null;
+  mobileHomeworkPriorityQueueGeneratedAt?: string;
+  mobileHomeworkPriorityQueueSummary?: {
+    queuedCount: number;
+    p0Count: number;
+    p1Count: number;
+    p2Count: number;
+    medianStaleHours: number;
+  } | null;
+  mobileHomeworkPriorityQueueItems?: Array<{
+    sessionId: string;
+    priorityTier: 'P0' | 'P1' | 'P2';
+    staleHours: number;
+    riskScore: number;
+    diagnosis: string;
+  }>;
+  onRefreshHomeworkPriorityQueue?: () => void;
   onChangeLanguage: (language: AppLanguage) => void;
   onToggleSfx: () => void;
   onToggleAiVoiceAssist: () => void;
@@ -68,6 +87,13 @@ export function ProfileScreen({
   sfxEnabled,
   aiVoiceAssistEnabled,
   politeMode,
+  mobileHomeworkPriorityQueueEnabled = false,
+  mobileHomeworkPriorityQueueLoading = false,
+  mobileHomeworkPriorityQueueError = null,
+  mobileHomeworkPriorityQueueGeneratedAt,
+  mobileHomeworkPriorityQueueSummary,
+  mobileHomeworkPriorityQueueItems = [],
+  onRefreshHomeworkPriorityQueue,
   onChangeLanguage,
   onToggleSfx,
   onToggleAiVoiceAssist,
@@ -149,6 +175,37 @@ export function ProfileScreen({
           <Text style={styles.actionBtnText}>{l(language, '管理訂閱', '管理订阅', 'Manage Subscription')}</Text>
         </Pressable>
       </View>
+
+      {mobileHomeworkPriorityQueueEnabled ? (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>{l(language, '作業優先隊列（行動端）', '作业优先队列（移动端）', 'Homework Priority Queue (Mobile)')}</Text>
+          <Text style={styles.cardHint}>{l(language, '同步後端高風險作業隊列，快速定位流失風險。', '同步后端高风险作业队列，快速定位流失风险。', 'Sync high-risk homework queue from backend and surface churn-risk sessions quickly.')}</Text>
+          {mobileHomeworkPriorityQueueLoading ? (
+            <Text style={styles.cardHint}>{l(language, '載入中...', '加载中...', 'Loading...')}</Text>
+          ) : null}
+          {!mobileHomeworkPriorityQueueLoading && mobileHomeworkPriorityQueueSummary ? (
+            <Text style={styles.cardHint}>
+              {`queued ${mobileHomeworkPriorityQueueSummary.queuedCount} · P0 ${mobileHomeworkPriorityQueueSummary.p0Count} · P1 ${mobileHomeworkPriorityQueueSummary.p1Count} · P2 ${mobileHomeworkPriorityQueueSummary.p2Count} · median stale ${mobileHomeworkPriorityQueueSummary.medianStaleHours.toFixed(1)}h`}
+            </Text>
+          ) : null}
+          {!mobileHomeworkPriorityQueueLoading && mobileHomeworkPriorityQueueItems.length > 0
+            ? mobileHomeworkPriorityQueueItems.slice(0, 3).map((item) => (
+              <View key={item.sessionId} style={styles.priorityQueueItem}>
+                <Text style={styles.priorityQueueTitle}>{`${item.priorityTier} · ${item.sessionId.slice(0, 8)} · risk ${item.riskScore.toFixed(1)}`}</Text>
+                <Text style={styles.cardHint}>{`${item.staleHours.toFixed(1)}h stale · ${item.diagnosis}`}</Text>
+              </View>
+            ))
+            : null}
+          {mobileHomeworkPriorityQueueError ? <Text style={styles.errorText}>{mobileHomeworkPriorityQueueError}</Text> : null}
+          <Text style={styles.cardHint}>{mobileHomeworkPriorityQueueGeneratedAt ? `generatedAt ${mobileHomeworkPriorityQueueGeneratedAt}` : ''}</Text>
+          <Pressable
+            onPress={onRefreshHomeworkPriorityQueue}
+            style={({ pressed }) => [styles.actionBtn, styles.actionBtnAlt, pressed && styles.pressed]}
+          >
+            <Text style={styles.actionBtnText}>{l(language, '手動刷新', '手动刷新', 'Refresh')}</Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>{l(language, '通用設定', '通用设置', 'General Settings')}</Text>
@@ -341,6 +398,25 @@ const styles = StyleSheet.create({
     color: '#f6ecb9',
     fontSize: 18,
     fontWeight: '900',
+  },
+  priorityQueueItem: {
+    borderWidth: 1,
+    borderColor: '#2f5563',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    backgroundColor: '#102c3a',
+    gap: 2,
+  },
+  priorityQueueTitle: {
+    color: '#f3faff',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  errorText: {
+    color: '#ffb8b8',
+    fontSize: 12,
+    fontWeight: '700',
   },
   settingRow: {
     flexDirection: 'row',
