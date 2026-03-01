@@ -30,6 +30,26 @@ type ApiErrorResponse = {
   requestId?: string;
 };
 
+export type CoachCampaignRecommendationsResponse = {
+  requestId: string;
+  windowDays: 7 | 30 | 90;
+  generatedAt: string;
+  baselineAttachRatePct: number;
+  projectedAttachRatePct: number;
+  projectedAttachLiftPct: number;
+  highestImpactStage: string;
+  items: Array<{
+    stageKey: 'coach_message_sent' | 'coach_action_executed' | 'drill_started';
+    stageLabel: string;
+    blockerSessions: number;
+    blockerRatePct: number;
+    expectedRecoveredSessions: number;
+    expectedAttachLiftPct: number;
+    recommendedCampaignType: 'nudge' | 'quick_drill' | 'recovery';
+    recommendedAction: string;
+  }>;
+};
+
 const DEFAULT_API_BASE = 'http://localhost:3001';
 const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL ?? DEFAULT_API_BASE).replace(/\/+$/, '');
 const PUBLIC_API_KEY = (process.env.NEXT_PUBLIC_API_KEY ?? '').trim();
@@ -154,6 +174,12 @@ export const apiClient = {
 
   async getLeakReport(windowDays: 7 | 30 | 90): Promise<LeakReportResponse> {
     return requestJson<LeakReportResponse>(`/api/reports/leaks?windowDays=${windowDays}`);
+  },
+
+  async getCoachCampaignRecommendations(windowDays: 7 | 30 | 90): Promise<CoachCampaignRecommendationsResponse> {
+    return requestJson<CoachCampaignRecommendationsResponse>(
+      `/api/admin/coach/campaign-recommendations?windowDays=${windowDays}`,
+    );
   },
 
   async zenChat(input: ZenChatRequest): Promise<ZenChatResponse> {

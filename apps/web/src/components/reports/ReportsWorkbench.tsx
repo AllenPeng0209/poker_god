@@ -3,10 +3,11 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useI18n } from '@/components/i18n/I18nProvider';
-import { apiClient } from '@/lib/apiClient';
+import { apiClient, type CoachCampaignRecommendationsResponse } from '@/lib/apiClient';
 import { trackEvent } from '@/lib/analytics';
 
 const WINDOW_OPTIONS: Array<7 | 30 | 90> = [7, 30, 90];
+const ADMIN_COACH_CAMPAIGN_RECO_V1 = process.env.NEXT_PUBLIC_ADMIN_COACH_CAMPAIGN_RECO_V1 === '1';
 
 export function ReportsWorkbench() {
   const { t } = useI18n();
@@ -26,6 +27,7 @@ export function ReportsWorkbench() {
       relatedTag: string;
     }>
   >([]);
+  const [campaignReco, setCampaignReco] = useState<CoachCampaignRecommendationsResponse | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -33,10 +35,14 @@ export function ReportsWorkbench() {
       setLoading(true);
       setError(null);
       try {
-        const response = await apiClient.getLeakReport(windowDays);
+        const [response, campaignResponse] = await Promise.all([
+          apiClient.getLeakReport(windowDays),
+          ADMIN_COACH_CAMPAIGN_RECO_V1 ? apiClient.getCoachCampaignRecommendations(windowDays) : Promise.resolve(null),
+        ]);
         if (cancelled) return;
         setItems(response.items);
         setGeneratedAt(response.generatedAt);
+        setCampaignReco(campaignResponse);
         trackEvent('report_opened', {
           module: 'reports',
           requestId: response.requestId,
@@ -121,6 +127,37 @@ export function ReportsWorkbench() {
           </ul>
         ) : null}
       </article>
+
+      {ADMIN_COACH_CAMPAIGN_RECO_V1 ? (
+        <article className="mvp-card">
+          <h2>Admin Coach Campaign Recommendations</h2>
+          <p className="mvp-muted">
+            Baseline attach {campaignReco?.baselineAttachRatePct.toFixed(1) ?? '-'}% → projected{' '}
+            {campaignReco?.projectedAttachRatePct.toFixed(1) ?? '-'}% (lift{' '}
+            {campaignReco?.projectedAttachLiftPct.toFixed(1) ?? '-'}%).
+          </p>
+          <p className="mvp-muted">Highest impact stage: {campaignReco?.highestImpactStage ?? '-'}</p>
+          {campaignReco?.items?.length ? (
+            <ul className="mvp-report-list">
+              {campaignReco.items.map((item) => (
+                <li key={item.stageKey}>
+                  <div className="mvp-report-list__title">
+                    <strong>{item.stageLabel}</strong>
+                    <span>Blocker {item.blockerRatePct.toFixed(1)}%</span>
+                  </div>
+                  <p>
+                    Recover ≈ {item.expectedRecoveredSessions} sessions (+{item.expectedAttachLiftPct.toFixed(2)}% attach) ·
+                    {` ${item.recommendedCampaignType}`}
+                  </p>
+                  <p>{item.recommendedAction}</p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mvp-muted">No recommendation data yet.</p>
+          )}
+        </article>
+      ) : null}
 
       {error ? <p className="module-error-text">{error}</p> : null}
     </section>

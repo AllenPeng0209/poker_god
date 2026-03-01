@@ -25,6 +25,9 @@ from .schemas import (
     CoachCreateDrillRequest,
     CoachCreatePlanRequest,
     CoachCreatePlanResponse,
+    CoachCampaignRecommendationItem,
+    CoachCampaignRecommendationsResponse,
+    CoachConversionBlockerItem,
     CoachSection,
     Drill,
     DrillCreateRequest,
@@ -1871,6 +1874,118 @@ def build_leak_report(supabase: Client, window_days: int) -> LeakReportResponse:
         requestId=rid,
         windowDays=7 if window_days == 7 else 90 if window_days == 90 else 30,
         generatedAt=now_iso(),
+        items=items,
+    )
+
+
+def build_coach_campaign_recommendations(supabase: Client, window_days: int) -> CoachCampaignRecommendationsResponse:
+    rid = request_id()
+    parsed_window = 7 if window_days == 7 else 90 if window_days == 90 else 30
+    cutoff = datetime.now(UTC) - timedelta(days=parsed_window)
+
+    rows = (
+        supabase.table("pg_mvp_events")
+        .select("session_id,event_name,event_time")
+        .gte("event_time", cutoff.isoformat())
+        .in_("event_name", ["coach_message_sent", "coach_action_executed", "drill_started", "drill_completed"])
+        .execute()
+        .data
+        or []
+    )
+
+    stage_flow: list[tuple[str, str, str, str, float]] = [
+        (
+            "coach_message_sent",
+            "Coach Message",
+            "nudge",
+            "Trigger re-engagement nudge within 30 minutes with one-tap CTA.",
+            0.22,
+        ),
+        (
+            "coach_action_executed",
+            "Coach Action",
+            "quick_drill",
+            "Launch one-click quick drill pack prefilled from the latest leak cluster.",
+            0.28,
+        ),
+        (
+            "drill_started",
+            "Drill Started",
+            "recovery",
+            "Send recovery campaign with unfinished drill resume deep link and deadline reminder.",
+            0.18,
+        ),
+    ]
+
+    sessions_by_stage: dict[str, set[str]] = {
+        "coach_message_sent": set(),
+        "coach_action_executed": set(),
+        "drill_started": set(),
+        "drill_completed": set(),
+    }
+    for row in rows:
+        session_id = str(row.get("session_id") or "").strip()
+        event_name = str(row.get("event_name") or "").strip()
+        if not session_id or event_name not in sessions_by_stage:
+            continue
+        sessions_by_stage[event_name].add(session_id)
+
+    sent_count = len(sessions_by_stage["coach_message_sent"])
+    action_count = len(sessions_by_stage["coach_action_executed"])
+    completed_count = len(sessions_by_stage["drill_completed"])
+
+    baseline_attach_rate_pct = round((action_count / max(sent_count, 1)) * 100.0, 1)
+    items: list[CoachCampaignRecommendationItem] = []
+    highest_impact_stage = "coach_message_sent"
+    highest_expected_lift = -1.0
+
+    next_stage_map = {
+        "coach_message_sent": "coach_action_executed",
+        "coach_action_executed": "drill_started",
+        "drill_started": "drill_completed",
+    }
+
+    projected_recovered_sessions_total = 0
+    for stage_key, stage_label, campaign_type, action_text, recovery_factor in stage_flow:
+        stage_count = len(sessions_by_stage[stage_key])
+        next_stage_count = len(sessions_by_stage[next_stage_map[stage_key]])
+        blocker_sessions = max(stage_count - next_stage_count, 0)
+        blocker_rate_pct = round((blocker_sessions / max(stage_count, 1)) * 100.0, 1)
+        expected_recovered_sessions = int(round(blocker_sessions * recovery_factor))
+        projected_recovered_sessions_total += expected_recovered_sessions
+        expected_attach_lift_pct = round((expected_recovered_sessions / max(sent_count, 1)) * 100.0, 2)
+
+        items.append(
+            CoachCampaignRecommendationItem(
+                stageKey=stage_key,
+                stageLabel=stage_label,
+                blockerSessions=blocker_sessions,
+                blockerRatePct=blocker_rate_pct,
+                expectedRecoveredSessions=expected_recovered_sessions,
+                expectedAttachLiftPct=expected_attach_lift_pct,
+                recommendedCampaignType=campaign_type,  # type: ignore[arg-type]
+                recommendedAction=action_text,
+            ),
+        )
+
+        if expected_attach_lift_pct > highest_expected_lift:
+            highest_expected_lift = expected_attach_lift_pct
+            highest_impact_stage = stage_key
+
+    projected_attach_rate_pct = round(
+        ((action_count + projected_recovered_sessions_total) / max(sent_count, 1)) * 100.0,
+        1,
+    )
+    projected_attach_lift_pct = round(projected_attach_rate_pct - baseline_attach_rate_pct, 1)
+
+    return CoachCampaignRecommendationsResponse(
+        requestId=rid,
+        windowDays=parsed_window,
+        generatedAt=now_iso(),
+        baselineAttachRatePct=baseline_attach_rate_pct,
+        projectedAttachRatePct=projected_attach_rate_pct,
+        projectedAttachLiftPct=projected_attach_lift_pct,
+        highestImpactStage=highest_impact_stage,
         items=items,
     )
 
