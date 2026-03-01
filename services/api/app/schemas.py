@@ -382,6 +382,36 @@ class CoachCreatePlanResponse(BaseModel):
     plan: WeeklyPlan
 
 
+CoachSessionMemoryRisk = Literal["low", "medium", "high"]
+
+
+class CoachSessionMemoryItem(BaseModel):
+    sessionId: str
+    messageCount: int
+    actionCount: int
+    attachRatePct: float
+    staleHours: float
+    riskLevel: CoachSessionMemoryRisk
+    lastEventAt: str
+    recommendedAction: str
+
+
+class CoachSessionMemorySummary(BaseModel):
+    sessions: int
+    highRiskSessions: int
+    mediumRiskSessions: int
+    averageAttachRatePct: float
+    staleRiskRatePct: float
+
+
+class CoachSessionMemoryResponse(BaseModel):
+    requestId: str
+    windowDays: Literal[7, 30, 90]
+    generatedAt: str
+    summary: CoachSessionMemorySummary
+    sessions: list[CoachSessionMemoryItem]
+
+
 AnalyticsEventName = Literal[
     "study_node_opened",
     "drill_started",

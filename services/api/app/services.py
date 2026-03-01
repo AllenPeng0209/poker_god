@@ -26,6 +26,9 @@ from .schemas import (
     CoachCreatePlanRequest,
     CoachCreatePlanResponse,
     CoachSection,
+    CoachSessionMemoryItem,
+    CoachSessionMemoryResponse,
+    CoachSessionMemorySummary,
     Drill,
     DrillCreateRequest,
     DrillCreateResponse,
@@ -2000,6 +2003,108 @@ def ingest_events(supabase: Client, events: list[dict[str, Any]]) -> int:
         )
     supabase.table("pg_mvp_events").insert(rows).execute()
     return len(rows)
+
+
+def build_coach_session_memory(supabase: Client, window_days: int, limit: int = 20) -> CoachSessionMemoryResponse:
+    rid = request_id()
+    parsed_window = 7 if window_days == 7 else 90 if window_days == 90 else 30
+    cutoff = datetime.now(UTC) - timedelta(days=parsed_window)
+    rows = (
+        supabase.table("pg_mvp_events")
+        .select("session_id,event_name,event_time")
+        .eq("module", "coach")
+        .gte("event_time", cutoff.isoformat())
+        .order("event_time", desc=True)
+        .execute()
+        .data
+        or []
+    )
+
+    grouped: dict[str, dict[str, Any]] = {}
+    now_ts = datetime.now(UTC)
+    for row in rows:
+        session_id = str(row.get("session_id") or "").strip()
+        if not session_id:
+            continue
+        event_name = str(row.get("event_name") or "")
+        event_time_raw = str(row.get("event_time") or "")
+        try:
+            event_time = datetime.fromisoformat(event_time_raw.replace("Z", "+00:00"))
+        except ValueError:
+            event_time = now_ts
+        bucket = grouped.setdefault(
+            session_id,
+            {"messages": 0, "actions": 0, "last_event_at": event_time},
+        )
+        if event_name == "coach_message_sent":
+            bucket["messages"] += 1
+        if event_name == "coach_action_executed":
+            bucket["actions"] += 1
+        if event_time > bucket["last_event_at"]:
+            bucket["last_event_at"] = event_time
+
+    session_items: list[CoachSessionMemoryItem] = []
+    high_risk = 0
+    medium_risk = 0
+
+    for session_id, metrics in grouped.items():
+        message_count = int(metrics["messages"])
+        action_count = int(metrics["actions"])
+        attach_rate = round((action_count / message_count) * 100.0, 1) if message_count > 0 else 0.0
+        last_event_at: datetime = metrics["last_event_at"]
+        stale_hours = round(max(0.0, (now_ts - last_event_at).total_seconds() / 3600.0), 1)
+
+        if attach_rate < 20.0 and stale_hours >= 24.0:
+            risk_level = "high"
+            recommended_action = "launch_recovery_homework_campaign"
+            high_risk += 1
+        elif attach_rate < 40.0 or stale_hours >= 12.0:
+            risk_level = "medium"
+            recommended_action = "send_coach_nudge_with_quick_drill"
+            medium_risk += 1
+        else:
+            risk_level = "low"
+            recommended_action = "keep_current_coach_loop"
+
+        session_items.append(
+            CoachSessionMemoryItem(
+                sessionId=session_id,
+                messageCount=message_count,
+                actionCount=action_count,
+                attachRatePct=attach_rate,
+                staleHours=stale_hours,
+                riskLevel=risk_level,
+                lastEventAt=last_event_at.isoformat(),
+                recommendedAction=recommended_action,
+            ),
+        )
+
+    session_items = sorted(
+        session_items,
+        key=lambda item: (
+            0 if item.riskLevel == "high" else 1 if item.riskLevel == "medium" else 2,
+            -item.staleHours,
+            item.attachRatePct,
+        ),
+    )[: max(1, min(limit, 100))]
+
+    total_sessions = len(session_items)
+    avg_attach = round(sum(item.attachRatePct for item in session_items) / total_sessions, 1) if total_sessions > 0 else 0.0
+    stale_risk_rate = round((high_risk / total_sessions) * 100.0, 1) if total_sessions > 0 else 0.0
+
+    return CoachSessionMemoryResponse(
+        requestId=rid,
+        windowDays=parsed_window,
+        generatedAt=now_iso(),
+        summary=CoachSessionMemorySummary(
+            sessions=total_sessions,
+            highRiskSessions=high_risk,
+            mediumRiskSessions=medium_risk,
+            averageAttachRatePct=avg_attach,
+            staleRiskRatePct=stale_risk_rate,
+        ),
+        sessions=session_items,
+    )
 
 
 def _build_chat_messages(payload: ZenChatRequest, content: str) -> list[dict[str, str]]:

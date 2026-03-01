@@ -356,6 +356,35 @@ export interface CoachCreatePlanResponse {
   plan: WeeklyPlan;
 }
 
+export type CoachSessionMemoryRisk = 'low' | 'medium' | 'high';
+
+export interface CoachSessionMemoryItem {
+  sessionId: string;
+  messageCount: number;
+  actionCount: number;
+  attachRatePct: number;
+  staleHours: number;
+  riskLevel: CoachSessionMemoryRisk;
+  lastEventAt: string;
+  recommendedAction: string;
+}
+
+export interface CoachSessionMemorySummary {
+  sessions: number;
+  highRiskSessions: number;
+  mediumRiskSessions: number;
+  averageAttachRatePct: number;
+  staleRiskRatePct: number;
+}
+
+export interface CoachSessionMemoryResponse {
+  requestId: string;
+  windowDays: 7 | 30 | 90;
+  generatedAt: string;
+  summary: CoachSessionMemorySummary;
+  sessions: CoachSessionMemoryItem[];
+}
+
 export type AnalyticsEventName =
   | 'study_node_opened'
   | 'drill_started'

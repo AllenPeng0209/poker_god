@@ -7,6 +7,7 @@ import { apiClient } from '@/lib/apiClient';
 import { trackEvent } from '@/lib/analytics';
 
 const WINDOW_OPTIONS: Array<7 | 30 | 90> = [7, 30, 90];
+const ADMIN_COACH_SESSION_MEMORY_V1 = process.env.NEXT_PUBLIC_ADMIN_COACH_SESSION_MEMORY_V1 === '1';
 
 export function ReportsWorkbench() {
   const { t } = useI18n();
@@ -24,6 +25,23 @@ export function ReportsWorkbench() {
       evLossBb100: number;
       recommendation: string;
       relatedTag: string;
+    }>
+  >([]);
+  const [memoryLoading, setMemoryLoading] = useState(false);
+  const [memoryError, setMemoryError] = useState<string | null>(null);
+  const [memorySummary, setMemorySummary] = useState<{
+    sessions: number;
+    highRiskSessions: number;
+    averageAttachRatePct: number;
+    staleRiskRatePct: number;
+  } | null>(null);
+  const [memorySessions, setMemorySessions] = useState<
+    Array<{
+      sessionId: string;
+      attachRatePct: number;
+      staleHours: number;
+      riskLevel: 'low' | 'medium' | 'high';
+      recommendedAction: string;
     }>
   >([]);
 
@@ -61,6 +79,42 @@ export function ReportsWorkbench() {
       cancelled = true;
     };
   }, [windowDays, t]);
+
+  useEffect(() => {
+    if (!ADMIN_COACH_SESSION_MEMORY_V1) return;
+    let cancelled = false;
+    const run = async () => {
+      setMemoryLoading(true);
+      setMemoryError(null);
+      try {
+        const response = await apiClient.getCoachSessionMemory(windowDays, 5);
+        if (cancelled) return;
+        setMemorySummary(response.summary);
+        setMemorySessions(
+          response.sessions.map((session) => ({
+            sessionId: session.sessionId,
+            attachRatePct: session.attachRatePct,
+            staleHours: session.staleHours,
+            riskLevel: session.riskLevel,
+            recommendedAction: session.recommendedAction,
+          })),
+        );
+      } catch (loadError) {
+        if (!cancelled) {
+          setMemoryError(loadError instanceof Error ? loadError.message : 'Failed to load coach session memory radar.');
+        }
+      } finally {
+        if (!cancelled) {
+          setMemoryLoading(false);
+        }
+      }
+    };
+
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [windowDays]);
 
   return (
     <section className="mvp-panel" aria-labelledby="reports-title">
@@ -121,6 +175,38 @@ export function ReportsWorkbench() {
           </ul>
         ) : null}
       </article>
+
+      {ADMIN_COACH_SESSION_MEMORY_V1 ? (
+        <article className="mvp-card">
+          <h2>Admin Coach Session Memory Radar</h2>
+          {memoryLoading ? <p className="mvp-muted">Loading coach memory risk...</p> : null}
+          {!memoryLoading && memorySummary ? (
+            <p className="mvp-muted">
+              Sessions {memorySummary.sessions} · High risk {memorySummary.highRiskSessions} · Avg attach{' '}
+              {memorySummary.averageAttachRatePct.toFixed(1)}% · Stale risk {memorySummary.staleRiskRatePct.toFixed(1)}%
+            </p>
+          ) : null}
+          {!memoryLoading && memorySessions.length > 0 ? (
+            <ul className="mvp-report-list">
+              {memorySessions.map((session, index) => (
+                <li key={session.sessionId}>
+                  <div className="mvp-report-list__title">
+                    <strong>
+                      #{index + 1} {session.sessionId}
+                    </strong>
+                    <span>{session.riskLevel.toUpperCase()}</span>
+                  </div>
+                  <p>
+                    attach {session.attachRatePct.toFixed(1)}% · stale {session.staleHours.toFixed(1)}h
+                  </p>
+                  <p>{session.recommendedAction}</p>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {memoryError ? <p className="module-error-text">{memoryError}</p> : null}
+        </article>
+      ) : null}
 
       {error ? <p className="module-error-text">{error}</p> : null}
     </section>

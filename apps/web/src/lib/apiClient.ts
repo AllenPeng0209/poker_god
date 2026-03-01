@@ -9,6 +9,7 @@ import type {
   CoachCreateDrillRequest,
   CoachCreatePlanRequest,
   CoachCreatePlanResponse,
+  CoachSessionMemoryResponse,
   DrillCreateRequest,
   DrillCreateResponse,
   DrillListResponse,
@@ -154,6 +155,12 @@ export const apiClient = {
 
   async getLeakReport(windowDays: 7 | 30 | 90): Promise<LeakReportResponse> {
     return requestJson<LeakReportResponse>(`/api/reports/leaks?windowDays=${windowDays}`);
+  },
+
+  async getCoachSessionMemory(windowDays: 7 | 30 | 90, limit = 20): Promise<CoachSessionMemoryResponse> {
+    return requestJson<CoachSessionMemoryResponse>(
+      `/api/admin/coach/session-memory?windowDays=${windowDays}&limit=${limit}`,
+    );
   },
 
   async zenChat(input: ZenChatRequest): Promise<ZenChatResponse> {
