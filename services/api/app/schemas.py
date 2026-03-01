@@ -318,6 +318,39 @@ class LeakReportResponse(BaseModel):
     items: list[LeakReportItem]
 
 
+HomeworkPriorityTier = Literal["P0", "P1", "P2"]
+
+
+class HomeworkPriorityQueueItem(BaseModel):
+    sessionId: str
+    homeworkId: str | None = None
+    userId: str | None = None
+    attachedAt: str
+    startedAt: str | None = None
+    completedAt: str | None = None
+    staleHours: float
+    priorityTier: HomeworkPriorityTier
+    riskScore: float
+    diagnosis: str
+    recommendedAction: str
+
+
+class HomeworkPriorityQueueSummary(BaseModel):
+    queuedCount: int
+    p0Count: int
+    p1Count: int
+    p2Count: int
+    medianStaleHours: float
+
+
+class HomeworkPriorityQueueResponse(BaseModel):
+    requestId: str
+    generatedAt: str
+    windowDays: Literal[7, 30, 90]
+    summary: HomeworkPriorityQueueSummary
+    items: list[HomeworkPriorityQueueItem]
+
+
 CoachModule = Literal["study", "practice", "analyze", "reports"]
 CoachMode = Literal["Explain", "Fix", "Drill", "Plan"]
 CoachActionType = Literal["create_drill", "create_plan"]

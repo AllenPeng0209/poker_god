@@ -28,6 +28,7 @@ from .schemas import (
     DrillListResponse,
     ErrorBody,
     HealthResponse,
+    HomeworkPriorityQueueResponse,
     LeakReportResponse,
     PracticeCompleteSessionResponse,
     PracticeSessionStartRequest,
@@ -42,6 +43,7 @@ from .schemas import (
     ZenChatResponse,
 )
 from .services import (
+    build_homework_priority_queue,
     build_leak_report,
     coach_chat,
     coach_create_drill_action,
@@ -396,6 +398,15 @@ def reports_leaks(window_days: int = Query(default=30, alias="windowDays")) -> L
     supabase = get_supabase_client()
     parsed_window = 7 if window_days == 7 else 90 if window_days == 90 else 30
     return build_leak_report(supabase, parsed_window)
+
+
+@app.get("/api/admin/coach/homework-priority-queue", response_model=HomeworkPriorityQueueResponse)
+def admin_homework_priority_queue(
+    window_days: int = Query(default=30, alias="windowDays"),
+    limit: int = Query(default=20),
+) -> HomeworkPriorityQueueResponse:
+    supabase = get_supabase_client()
+    return build_homework_priority_queue(supabase, window_days=window_days, limit=limit)
 
 
 @app.post("/api/coach/chat", response_model=CoachChatResponse)

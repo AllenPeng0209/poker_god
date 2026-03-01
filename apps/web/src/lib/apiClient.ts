@@ -13,6 +13,7 @@ import type {
   DrillCreateResponse,
   DrillListResponse,
   LeakReportResponse,
+  HomeworkPriorityQueueResponse,
   PracticeCompleteSessionResponse,
   PracticeSessionStartRequest,
   PracticeSessionStartResponse,
@@ -154,6 +155,12 @@ export const apiClient = {
 
   async getLeakReport(windowDays: 7 | 30 | 90): Promise<LeakReportResponse> {
     return requestJson<LeakReportResponse>(`/api/reports/leaks?windowDays=${windowDays}`);
+  },
+
+  async getHomeworkPriorityQueue(windowDays: 7 | 30 | 90): Promise<HomeworkPriorityQueueResponse> {
+    return requestJson<HomeworkPriorityQueueResponse>(
+      `/api/admin/coach/homework-priority-queue?windowDays=${windowDays}&limit=20`,
+    );
   },
 
   async zenChat(input: ZenChatRequest): Promise<ZenChatResponse> {

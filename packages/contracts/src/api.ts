@@ -291,6 +291,38 @@ export interface LeakReportResponse {
   items: LeakReportItem[];
 }
 
+export type HomeworkPriorityTier = 'P0' | 'P1' | 'P2';
+
+export interface HomeworkPriorityQueueItem {
+  sessionId: string;
+  homeworkId?: string;
+  userId?: string;
+  attachedAt: string;
+  startedAt?: string;
+  completedAt?: string;
+  staleHours: number;
+  priorityTier: HomeworkPriorityTier;
+  riskScore: number;
+  diagnosis: string;
+  recommendedAction: string;
+}
+
+export interface HomeworkPriorityQueueSummary {
+  queuedCount: number;
+  p0Count: number;
+  p1Count: number;
+  p2Count: number;
+  medianStaleHours: number;
+}
+
+export interface HomeworkPriorityQueueResponse {
+  requestId: string;
+  generatedAt: string;
+  windowDays: 7 | 30 | 90;
+  summary: HomeworkPriorityQueueSummary;
+  items: HomeworkPriorityQueueItem[];
+}
+
 export type CoachModule = 'study' | 'practice' | 'analyze' | 'reports';
 export type CoachMode = 'Explain' | 'Fix' | 'Drill' | 'Plan';
 

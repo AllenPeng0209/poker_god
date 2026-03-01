@@ -33,6 +33,9 @@ from .schemas import (
     DrillListResponse,
     LeakReportItem,
     LeakReportResponse,
+    HomeworkPriorityQueueItem,
+    HomeworkPriorityQueueResponse,
+    HomeworkPriorityQueueSummary,
     PracticeAnswerFeedback,
     PracticeCompleteSessionResponse,
     PracticeQuestion,
@@ -1872,6 +1875,140 @@ def build_leak_report(supabase: Client, window_days: int) -> LeakReportResponse:
         windowDays=7 if window_days == 7 else 90 if window_days == 90 else 30,
         generatedAt=now_iso(),
         items=items,
+    )
+
+
+def _safe_datetime(value: Any) -> datetime | None:
+    if isinstance(value, datetime):
+        return value.astimezone(UTC) if value.tzinfo else value.replace(tzinfo=UTC)
+    if not isinstance(value, str):
+        return None
+    raw = value.strip()
+    if not raw:
+        return None
+    normalized = raw.replace("Z", "+00:00")
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError:
+        return None
+    return parsed.astimezone(UTC) if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+
+
+def _quantile(values: list[float], q: float) -> float:
+    if not values:
+        return 0.0
+    ordered = sorted(values)
+    index = int((len(ordered) - 1) * max(0.0, min(1.0, q)))
+    return ordered[index]
+
+
+def build_homework_priority_queue(supabase: Client, window_days: int, limit: int) -> HomeworkPriorityQueueResponse:
+    rid = request_id()
+    parsed_window = 7 if window_days == 7 else 90 if window_days == 90 else 30
+    safe_limit = max(1, min(limit, 100))
+    cutoff = datetime.now(UTC) - timedelta(days=parsed_window)
+
+    rows = (
+        supabase.table("pg_mvp_events")
+        .select("event_name,event_time,session_id,user_id,payload")
+        .gte("event_time", cutoff.isoformat())
+        .in_("event_name", ["coach_action_executed", "drill_started", "drill_completed"])
+        .order("event_time", desc=False)
+        .execute()
+        .data
+        or []
+    )
+
+    session_state: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        session_id = str(row.get("session_id") or "").strip()
+        if not session_id:
+            continue
+        payload = row.get("payload") if isinstance(row.get("payload"), dict) else {}
+        state = session_state.setdefault(
+            session_id,
+            {
+                "sessionId": session_id,
+                "homeworkId": payload.get("homeworkId") if isinstance(payload.get("homeworkId"), str) else None,
+                "userId": row.get("user_id") if isinstance(row.get("user_id"), str) else None,
+                "attachedAt": None,
+                "startedAt": None,
+                "completedAt": None,
+            },
+        )
+        event_name = str(row.get("event_name") or "")
+        event_time = _safe_datetime(row.get("event_time"))
+        if event_time is None:
+            continue
+        if event_name == "coach_action_executed" and state["attachedAt"] is None:
+            state["attachedAt"] = event_time
+        elif event_name == "drill_started" and state["startedAt"] is None:
+            state["startedAt"] = event_time
+        elif event_name == "drill_completed" and state["completedAt"] is None:
+            state["completedAt"] = event_time
+
+    now = datetime.now(UTC)
+    queue_items: list[HomeworkPriorityQueueItem] = []
+    for state in session_state.values():
+        attached_at = state.get("attachedAt")
+        if not isinstance(attached_at, datetime):
+            continue
+        if isinstance(state.get("completedAt"), datetime):
+            continue
+
+        started_at = state.get("startedAt") if isinstance(state.get("startedAt"), datetime) else None
+        stale_hours = max(0.0, (now - attached_at).total_seconds() / 3600.0)
+        never_started = started_at is None
+
+        risk_score = min(100.0, round(stale_hours * (1.45 if never_started else 1.05) + (18 if never_started else 0), 1))
+        if stale_hours >= 72 or (never_started and stale_hours >= 36):
+            tier = "P0"
+            diagnosis = "homework not started and stale beyond escalation threshold"
+            action = "trigger high-priority coach follow-up + SMS/push reminder"
+        elif stale_hours >= 36:
+            tier = "P1"
+            diagnosis = "homework in stale risk zone, completion momentum dropping"
+            action = "send personalized reminder with 1-click resume deep link"
+        else:
+            tier = "P2"
+            diagnosis = "homework pending, monitor before intervention"
+            action = "keep in monitoring queue and re-check next cycle"
+
+        queue_items.append(
+            HomeworkPriorityQueueItem(
+                sessionId=str(state["sessionId"]),
+                homeworkId=state.get("homeworkId"),
+                userId=state.get("userId"),
+                attachedAt=attached_at.isoformat(),
+                startedAt=started_at.isoformat() if started_at else None,
+                completedAt=None,
+                staleHours=round(stale_hours, 1),
+                priorityTier=tier,  # type: ignore[arg-type]
+                riskScore=risk_score,
+                diagnosis=diagnosis,
+                recommendedAction=action,
+            ),
+        )
+
+    tier_rank = {"P0": 3, "P1": 2, "P2": 1}
+    queue_items.sort(key=lambda item: (tier_rank.get(item.priorityTier, 0), item.riskScore), reverse=True)
+    queue_items = queue_items[:safe_limit]
+
+    stale_values = [item.staleHours for item in queue_items]
+    summary = HomeworkPriorityQueueSummary(
+        queuedCount=len(queue_items),
+        p0Count=len([item for item in queue_items if item.priorityTier == "P0"]),
+        p1Count=len([item for item in queue_items if item.priorityTier == "P1"]),
+        p2Count=len([item for item in queue_items if item.priorityTier == "P2"]),
+        medianStaleHours=round(_quantile(stale_values, 0.5), 1),
+    )
+
+    return HomeworkPriorityQueueResponse(
+        requestId=rid,
+        generatedAt=now_iso(),
+        windowDays=parsed_window,
+        summary=summary,
+        items=queue_items,
     )
 
 

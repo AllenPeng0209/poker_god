@@ -7,6 +7,7 @@ import { apiClient } from '@/lib/apiClient';
 import { trackEvent } from '@/lib/analytics';
 
 const WINDOW_OPTIONS: Array<7 | 30 | 90> = [7, 30, 90];
+const ENABLE_ADMIN_HOMEWORK_PRIORITY_QUEUE = process.env.NEXT_PUBLIC_ADMIN_HOMEWORK_PRIORITY_QUEUE_V1 === '1';
 
 export function ReportsWorkbench() {
   const { t } = useI18n();
@@ -24,6 +25,26 @@ export function ReportsWorkbench() {
       evLossBb100: number;
       recommendation: string;
       relatedTag: string;
+    }>
+  >([]);
+  const [priorityLoading, setPriorityLoading] = useState(false);
+  const [priorityError, setPriorityError] = useState<string | null>(null);
+  const [prioritySummary, setPrioritySummary] = useState<{
+    queuedCount: number;
+    p0Count: number;
+    p1Count: number;
+    p2Count: number;
+    medianStaleHours: number;
+  } | null>(null);
+  const [priorityItems, setPriorityItems] = useState<
+    Array<{
+      sessionId: string;
+      homeworkId?: string;
+      staleHours: number;
+      priorityTier: 'P0' | 'P1' | 'P2';
+      riskScore: number;
+      diagnosis: string;
+      recommendedAction: string;
     }>
   >([]);
 
@@ -61,6 +82,37 @@ export function ReportsWorkbench() {
       cancelled = true;
     };
   }, [windowDays, t]);
+
+  useEffect(() => {
+    if (!ENABLE_ADMIN_HOMEWORK_PRIORITY_QUEUE) {
+      return;
+    }
+
+    let cancelled = false;
+    const run = async () => {
+      setPriorityLoading(true);
+      setPriorityError(null);
+      try {
+        const response = await apiClient.getHomeworkPriorityQueue(windowDays);
+        if (cancelled) return;
+        setPrioritySummary(response.summary);
+        setPriorityItems(response.items.slice(0, 5));
+      } catch (loadError) {
+        if (!cancelled) {
+          setPriorityError(loadError instanceof Error ? loadError.message : 'Failed to load homework priority queue');
+        }
+      } finally {
+        if (!cancelled) {
+          setPriorityLoading(false);
+        }
+      }
+    };
+
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [windowDays]);
 
   return (
     <section className="mvp-panel" aria-labelledby="reports-title">
@@ -121,6 +173,40 @@ export function ReportsWorkbench() {
           </ul>
         ) : null}
       </article>
+
+      {ENABLE_ADMIN_HOMEWORK_PRIORITY_QUEUE ? (
+        <article className="mvp-card" data-testid="admin-homework-priority-queue">
+          <h2>Admin Homework Priority Queue</h2>
+          <p className="mvp-muted">Operational queue for stale homework sessions at risk of churn.</p>
+          {priorityLoading ? <p className="mvp-muted">Loading homework priority queue…</p> : null}
+          {!priorityLoading && prioritySummary ? (
+            <p className="mvp-muted">
+              queued {prioritySummary.queuedCount} · P0 {prioritySummary.p0Count} · P1 {prioritySummary.p1Count} · P2{' '}
+              {prioritySummary.p2Count} · median stale {prioritySummary.medianStaleHours.toFixed(1)}h
+            </p>
+          ) : null}
+          {!priorityLoading && priorityItems.length > 0 ? (
+            <ul className="mvp-report-list">
+              {priorityItems.map((item) => (
+                <li key={item.sessionId}>
+                  <div className="mvp-report-list__title">
+                    <strong>
+                      {item.priorityTier} · session {item.sessionId.slice(0, 8)}
+                    </strong>
+                    <span>risk {item.riskScore.toFixed(1)}</span>
+                  </div>
+                  <p>
+                    stale {item.staleHours.toFixed(1)}h · homework {item.homeworkId ?? 'n/a'}
+                  </p>
+                  <p>{item.diagnosis}</p>
+                  <p>{item.recommendedAction}</p>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {priorityError ? <p className="module-error-text">{priorityError}</p> : null}
+        </article>
+      ) : null}
 
       {error ? <p className="module-error-text">{error}</p> : null}
     </section>
