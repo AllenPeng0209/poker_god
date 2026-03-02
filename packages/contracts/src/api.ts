@@ -291,6 +291,30 @@ export interface LeakReportResponse {
   items: LeakReportItem[];
 }
 
+export interface HomeworkPersonalizationItem {
+  relatedTag: string;
+  title: string;
+  recommendedHomeworkType: 'quick_drill' | 'line_review' | 'session_recap';
+  riskLevel: 'high' | 'medium' | 'low';
+  priorityScore: number;
+  expectedAttachLiftPct: number;
+  expectedCompletionLiftPct: number;
+  rationale: string;
+}
+
+export interface HomeworkPersonalizationResponse {
+  requestId: string;
+  windowDays: 7 | 30 | 90;
+  generatedAt: string;
+  summary: {
+    coachSessions: number;
+    baseAttachRatePct: number;
+    baseCompletionRatePct: number;
+    recommendedHomeworkCount: number;
+  };
+  items: HomeworkPersonalizationItem[];
+}
+
 export type CoachModule = 'study' | 'practice' | 'analyze' | 'reports';
 export type CoachMode = 'Explain' | 'Fix' | 'Drill' | 'Plan';
 

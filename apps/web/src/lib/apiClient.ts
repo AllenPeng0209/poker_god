@@ -12,6 +12,7 @@ import type {
   DrillCreateRequest,
   DrillCreateResponse,
   DrillListResponse,
+  HomeworkPersonalizationResponse,
   LeakReportResponse,
   PracticeCompleteSessionResponse,
   PracticeSessionStartRequest,
@@ -154,6 +155,10 @@ export const apiClient = {
 
   async getLeakReport(windowDays: 7 | 30 | 90): Promise<LeakReportResponse> {
     return requestJson<LeakReportResponse>(`/api/reports/leaks?windowDays=${windowDays}`);
+  },
+
+  async getHomeworkPersonalization(windowDays: 7 | 30 | 90): Promise<HomeworkPersonalizationResponse> {
+    return requestJson<HomeworkPersonalizationResponse>(`/api/admin/coach/homework-personalization?windowDays=${windowDays}`);
   },
 
   async zenChat(input: ZenChatRequest): Promise<ZenChatResponse> {

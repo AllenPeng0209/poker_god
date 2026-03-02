@@ -318,6 +318,25 @@ class LeakReportResponse(BaseModel):
     items: list[LeakReportItem]
 
 
+class HomeworkPersonalizationItem(BaseModel):
+    relatedTag: str
+    title: str
+    recommendedHomeworkType: Literal["quick_drill", "line_review", "session_recap"]
+    riskLevel: Literal["high", "medium", "low"]
+    priorityScore: float
+    expectedAttachLiftPct: float
+    expectedCompletionLiftPct: float
+    rationale: str
+
+
+class HomeworkPersonalizationResponse(BaseModel):
+    requestId: str
+    windowDays: Literal[7, 30, 90]
+    generatedAt: str
+    summary: dict[str, float | int]
+    items: list[HomeworkPersonalizationItem]
+
+
 CoachModule = Literal["study", "practice", "analyze", "reports"]
 CoachMode = Literal["Explain", "Fix", "Drill", "Plan"]
 CoachActionType = Literal["create_drill", "create_plan"]

@@ -7,6 +7,7 @@ import { apiClient } from '@/lib/apiClient';
 import { trackEvent } from '@/lib/analytics';
 
 const WINDOW_OPTIONS: Array<7 | 30 | 90> = [7, 30, 90];
+const ENABLE_HOMEWORK_PERSONALIZATION = process.env.NEXT_PUBLIC_ADMIN_HOMEWORK_PERSONALIZATION_V1 === '1';
 
 export function ReportsWorkbench() {
   const { t } = useI18n();
@@ -26,6 +27,24 @@ export function ReportsWorkbench() {
       relatedTag: string;
     }>
   >([]);
+  const [homeworkReco, setHomeworkReco] = useState<{
+    summary: {
+      coachSessions: number;
+      baseAttachRatePct: number;
+      baseCompletionRatePct: number;
+      recommendedHomeworkCount: number;
+    };
+    items: Array<{
+      relatedTag: string;
+      title: string;
+      recommendedHomeworkType: 'quick_drill' | 'line_review' | 'session_recap';
+      riskLevel: 'high' | 'medium' | 'low';
+      priorityScore: number;
+      expectedAttachLiftPct: number;
+      expectedCompletionLiftPct: number;
+      rationale: string;
+    }>;
+  } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -37,6 +56,15 @@ export function ReportsWorkbench() {
         if (cancelled) return;
         setItems(response.items);
         setGeneratedAt(response.generatedAt);
+        if (ENABLE_HOMEWORK_PERSONALIZATION) {
+          const personalization = await apiClient.getHomeworkPersonalization(windowDays);
+          if (!cancelled) {
+            setHomeworkReco({
+              summary: personalization.summary,
+              items: personalization.items,
+            });
+          }
+        }
         trackEvent('report_opened', {
           module: 'reports',
           requestId: response.requestId,
@@ -121,6 +149,31 @@ export function ReportsWorkbench() {
           </ul>
         ) : null}
       </article>
+
+      {ENABLE_HOMEWORK_PERSONALIZATION && homeworkReco ? (
+        <article className="mvp-card" data-testid="admin-homework-personalization-card">
+          <h2>Admin Homework Personalization Radar</h2>
+          <p className="mvp-muted">
+            sessions {homeworkReco.summary.coachSessions} · attach {homeworkReco.summary.baseAttachRatePct.toFixed(1)}% · completion{' '}
+            {homeworkReco.summary.baseCompletionRatePct.toFixed(1)}%
+          </p>
+          <ul className="mvp-report-list">
+            {homeworkReco.items.slice(0, 3).map((item) => (
+              <li key={`${item.relatedTag}-${item.title}`}>
+                <div className="mvp-report-list__title">
+                  <strong>{item.title}</strong>
+                  <span>{item.riskLevel.toUpperCase()} · {item.priorityScore.toFixed(1)}</span>
+                </div>
+                <p>
+                  {item.recommendedHomeworkType} · +{item.expectedAttachLiftPct.toFixed(2)}% attach · +
+                  {item.expectedCompletionLiftPct.toFixed(2)}% completion
+                </p>
+                <p>{item.rationale}</p>
+              </li>
+            ))}
+          </ul>
+        </article>
+      ) : null}
 
       {error ? <p className="module-error-text">{error}</p> : null}
     </section>

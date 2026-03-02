@@ -31,6 +31,8 @@ from .schemas import (
     DrillCreateResponse,
     DrillItem,
     DrillListResponse,
+    HomeworkPersonalizationItem,
+    HomeworkPersonalizationResponse,
     LeakReportItem,
     LeakReportResponse,
     PracticeAnswerFeedback,
@@ -1871,6 +1873,81 @@ def build_leak_report(supabase: Client, window_days: int) -> LeakReportResponse:
         requestId=rid,
         windowDays=7 if window_days == 7 else 90 if window_days == 90 else 30,
         generatedAt=now_iso(),
+        items=items,
+    )
+
+
+def build_homework_personalization(supabase: Client, window_days: int) -> HomeworkPersonalizationResponse:
+    rid = request_id()
+    leak_report = build_leak_report(supabase, window_days)
+    cutoff = datetime.now(UTC) - timedelta(days=window_days)
+    event_rows = (
+        supabase.table("pg_mvp_events")
+        .select("event_name,payload")
+        .gte("event_time", cutoff.isoformat())
+        .in_("event_name", ["coach_message_sent", "coach_action_executed", "drill_completed"])
+        .execute()
+        .data
+        or []
+    )
+
+    coach_sessions = 0
+    actions_executed = 0
+    drills_completed = 0
+    for row in event_rows:
+        event_name = str(row.get("event_name") or "")
+        if event_name == "coach_message_sent":
+            coach_sessions += 1
+        elif event_name == "coach_action_executed":
+            actions_executed += 1
+        elif event_name == "drill_completed":
+            drills_completed += 1
+
+    base_attach = (actions_executed / coach_sessions) if coach_sessions > 0 else 0.0
+    base_completion = (drills_completed / actions_executed) if actions_executed > 0 else 0.0
+
+    items: list[HomeworkPersonalizationItem] = []
+    for leak in leak_report.items[:5]:
+        normalized_impact = min(1.0, leak.impactScore / 200.0)
+        confidence_multiplier = 1.0 if leak.confidence == "high" else 0.8 if leak.confidence == "medium" else 0.6
+        priority_score = round(min(100.0, normalized_impact * 100.0 * confidence_multiplier), 1)
+        attach_lift = round(1.0 + priority_score * 0.05, 2)
+        completion_lift = round(0.6 + priority_score * 0.03, 2)
+
+        if leak.relatedTag in {"over_bluff", "under_bluff"}:
+            homework_type = "quick_drill"
+            rationale = "频率偏差明显，优先短周期 drill 纠偏。"
+        elif leak.relatedTag in {"missed_value", "size_mismatch"}:
+            homework_type = "line_review"
+            rationale = "推荐线路回看，提升中后街下注质量。"
+        else:
+            homework_type = "session_recap"
+            rationale = "先做会话复盘，减少连续决策漂移。"
+
+        risk_level = "high" if priority_score >= 70 else "medium" if priority_score >= 40 else "low"
+        items.append(
+            HomeworkPersonalizationItem(
+                relatedTag=leak.relatedTag,
+                title=leak.title,
+                recommendedHomeworkType=homework_type,  # type: ignore[arg-type]
+                riskLevel=risk_level,  # type: ignore[arg-type]
+                priorityScore=priority_score,
+                expectedAttachLiftPct=attach_lift,
+                expectedCompletionLiftPct=completion_lift,
+                rationale=rationale,
+            ),
+        )
+
+    return HomeworkPersonalizationResponse(
+        requestId=rid,
+        windowDays=window_days if window_days in {7, 30, 90} else 30,  # type: ignore[arg-type]
+        generatedAt=now_iso(),
+        summary={
+            "coachSessions": coach_sessions,
+            "baseAttachRatePct": round(base_attach * 100, 1),
+            "baseCompletionRatePct": round(base_completion * 100, 1),
+            "recommendedHomeworkCount": len(items),
+        },
         items=items,
     )
 
