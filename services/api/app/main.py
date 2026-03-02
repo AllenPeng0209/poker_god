@@ -18,6 +18,7 @@ from .schemas import (
     AnalyzeHandsResponse,
     AnalyzeUploadCreateRequest,
     AnalyzeUploadResponse,
+    AdminHomeworkPersonalizationResponse,
     CoachChatRequest,
     CoachChatResponse,
     CoachCreateDrillRequest,
@@ -50,6 +51,7 @@ from .services import (
     create_analyze_upload,
     create_drill,
     generate_zen_chat,
+    get_admin_homework_personalization,
     get_analyze_upload,
     get_study_spot_matrix,
     ingest_events,
@@ -396,6 +398,12 @@ def reports_leaks(window_days: int = Query(default=30, alias="windowDays")) -> L
     supabase = get_supabase_client()
     parsed_window = 7 if window_days == 7 else 90 if window_days == 90 else 30
     return build_leak_report(supabase, parsed_window)
+
+
+@app.get("/api/admin/coach/homework-personalization", response_model=AdminHomeworkPersonalizationResponse)
+def admin_homework_personalization() -> AdminHomeworkPersonalizationResponse:
+    supabase = get_supabase_client()
+    return get_admin_homework_personalization(supabase)
 
 
 @app.post("/api/coach/chat", response_model=CoachChatResponse)
