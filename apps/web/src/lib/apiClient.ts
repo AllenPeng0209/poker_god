@@ -30,6 +30,20 @@ type ApiErrorResponse = {
   requestId?: string;
 };
 
+export type CampaignReadinessResponse = {
+  requestId: string;
+  windowDays: 7 | 30 | 90;
+  generatedAt: string;
+  items: Array<{
+    leakTag: string;
+    sampleSize: number;
+    averageEvLossBb100: number;
+    recommendedChannel: 'in_app' | 'push' | 'email';
+    recommendedAction: string;
+    expectedAttachLiftPct: number;
+  }>;
+};
+
 const DEFAULT_API_BASE = 'http://localhost:3001';
 const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL ?? DEFAULT_API_BASE).replace(/\/+$/, '');
 const PUBLIC_API_KEY = (process.env.NEXT_PUBLIC_API_KEY ?? '').trim();
@@ -154,6 +168,10 @@ export const apiClient = {
 
   async getLeakReport(windowDays: 7 | 30 | 90): Promise<LeakReportResponse> {
     return requestJson<LeakReportResponse>(`/api/reports/leaks?windowDays=${windowDays}`);
+  },
+
+  async getCampaignReadiness(windowDays: 7 | 30 | 90): Promise<CampaignReadinessResponse> {
+    return requestJson<CampaignReadinessResponse>(`/api/admin/coach/campaign-readiness?windowDays=${windowDays}`);
   },
 
   async zenChat(input: ZenChatRequest): Promise<ZenChatResponse> {

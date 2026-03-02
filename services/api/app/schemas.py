@@ -318,6 +318,22 @@ class LeakReportResponse(BaseModel):
     items: list[LeakReportItem]
 
 
+class CampaignReadinessItem(BaseModel):
+    leakTag: str
+    sampleSize: int
+    averageEvLossBb100: float
+    recommendedChannel: Literal["in_app", "push", "email"]
+    recommendedAction: str
+    expectedAttachLiftPct: float
+
+
+class CampaignReadinessResponse(BaseModel):
+    requestId: str
+    windowDays: Literal[7, 30, 90]
+    generatedAt: str
+    items: list[CampaignReadinessItem]
+
+
 CoachModule = Literal["study", "practice", "analyze", "reports"]
 CoachMode = Literal["Explain", "Fix", "Drill", "Plan"]
 CoachActionType = Literal["create_drill", "create_plan"]

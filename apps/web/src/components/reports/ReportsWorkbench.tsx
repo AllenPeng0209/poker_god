@@ -10,6 +10,7 @@ const WINDOW_OPTIONS: Array<7 | 30 | 90> = [7, 30, 90];
 
 export function ReportsWorkbench() {
   const { t } = useI18n();
+  const campaignReadinessEnabled = process.env.NEXT_PUBLIC_ADMIN_CAMPAIGN_READINESS_V1 === '1';
   const [windowDays, setWindowDays] = useState<7 | 30 | 90>(30);
   const [isLoading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -26,6 +27,9 @@ export function ReportsWorkbench() {
       relatedTag: string;
     }>
   >([]);
+  const [campaignReadiness, setCampaignReadiness] = useState<Awaited<
+    ReturnType<typeof apiClient.getCampaignReadiness>
+  > | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -34,9 +38,11 @@ export function ReportsWorkbench() {
       setError(null);
       try {
         const response = await apiClient.getLeakReport(windowDays);
+        const readiness = await apiClient.getCampaignReadiness(windowDays);
         if (cancelled) return;
         setItems(response.items);
         setGeneratedAt(response.generatedAt);
+        setCampaignReadiness(readiness);
         trackEvent('report_opened', {
           module: 'reports',
           requestId: response.requestId,
@@ -121,6 +127,33 @@ export function ReportsWorkbench() {
           </ul>
         ) : null}
       </article>
+
+      {campaignReadinessEnabled ? (
+        <article className="mvp-card" data-testid="admin-campaign-readiness-card">
+          <h2>Admin Campaign Readiness</h2>
+          <p className="mvp-muted">Use top EV leak clusters to launch coach campaigns with measurable attach-lift hypotheses.</p>
+          {campaignReadiness?.items?.length ? (
+            <ul className="mvp-report-list">
+              {campaignReadiness.items.slice(0, 3).map((item, index) => (
+                <li key={`${item.leakTag}-${index}`}>
+                  <div className="mvp-report-list__title">
+                    <strong>
+                      #{index + 1} {item.leakTag}
+                    </strong>
+                    <span>Expected attach lift +{item.expectedAttachLiftPct.toFixed(2)}%</span>
+                  </div>
+                  <p>
+                    sample {item.sampleSize} · avg EV loss {item.averageEvLossBb100.toFixed(1)} bb/100 · channel {item.recommendedChannel}
+                  </p>
+                  <p>{item.recommendedAction}</p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mvp-muted">No campaign readiness suggestions yet.</p>
+          )}
+        </article>
+      ) : null}
 
       {error ? <p className="module-error-text">{error}</p> : null}
     </section>

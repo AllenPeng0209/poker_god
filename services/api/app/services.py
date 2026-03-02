@@ -19,6 +19,8 @@ from .schemas import (
     AnalyzeUploadCreateRequest,
     AnalyzeUploadResponse,
     AnalyzedHand,
+    CampaignReadinessItem,
+    CampaignReadinessResponse,
     CoachActionSuggestion,
     CoachChatRequest,
     CoachChatResponse,
@@ -1870,6 +1872,47 @@ def build_leak_report(supabase: Client, window_days: int) -> LeakReportResponse:
     return LeakReportResponse(
         requestId=rid,
         windowDays=7 if window_days == 7 else 90 if window_days == 90 else 30,
+        generatedAt=now_iso(),
+        items=items,
+    )
+
+
+def build_campaign_readiness(supabase: Client, window_days: int) -> CampaignReadinessResponse:
+    leak_report = build_leak_report(supabase, window_days)
+    channel_by_tag = {
+        "over_bluff": "in_app",
+        "under_bluff": "push",
+        "missed_value": "in_app",
+        "over_fold": "push",
+        "size_mismatch": "email",
+    }
+    action_by_tag = {
+        "over_bluff": "Launch blocker-focused bluff frequency refresher",
+        "under_bluff": "Launch aggression unlock nudge with 10-hand mini drill",
+        "missed_value": "Launch thin value confidence checklist",
+        "over_fold": "Launch bluff-catcher defense quick drill",
+        "size_mismatch": "Launch sizing discipline recap lesson",
+    }
+
+    items: list[CampaignReadinessItem] = []
+    for leak in leak_report.items[:5]:
+        channel = channel_by_tag.get(leak.relatedTag, "in_app")
+        action = action_by_tag.get(leak.relatedTag, "Launch generic EV recovery mini-campaign")
+        expected_lift = round(min(8.0, max(0.8, leak.impactScore / 25.0)), 2)
+        items.append(
+            CampaignReadinessItem(
+                leakTag=leak.relatedTag,
+                sampleSize=leak.sampleSize,
+                averageEvLossBb100=leak.evLossBb100,
+                recommendedChannel=channel,
+                recommendedAction=action,
+                expectedAttachLiftPct=expected_lift,
+            ),
+        )
+
+    return CampaignReadinessResponse(
+        requestId=request_id(),
+        windowDays=leak_report.windowDays,
         generatedAt=now_iso(),
         items=items,
     )

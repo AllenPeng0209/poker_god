@@ -18,6 +18,7 @@ from .schemas import (
     AnalyzeHandsResponse,
     AnalyzeUploadCreateRequest,
     AnalyzeUploadResponse,
+    CampaignReadinessResponse,
     CoachChatRequest,
     CoachChatResponse,
     CoachCreateDrillRequest,
@@ -42,6 +43,7 @@ from .schemas import (
     ZenChatResponse,
 )
 from .services import (
+    build_campaign_readiness,
     build_leak_report,
     coach_chat,
     coach_create_drill_action,
@@ -396,6 +398,13 @@ def reports_leaks(window_days: int = Query(default=30, alias="windowDays")) -> L
     supabase = get_supabase_client()
     parsed_window = 7 if window_days == 7 else 90 if window_days == 90 else 30
     return build_leak_report(supabase, parsed_window)
+
+
+@app.get("/api/admin/coach/campaign-readiness", response_model=CampaignReadinessResponse)
+def admin_campaign_readiness(window_days: int = Query(default=30, alias="windowDays")) -> CampaignReadinessResponse:
+    supabase = get_supabase_client()
+    parsed_window = 7 if window_days == 7 else 90 if window_days == 90 else 30
+    return build_campaign_readiness(supabase, parsed_window)
 
 
 @app.post("/api/coach/chat", response_model=CoachChatResponse)
