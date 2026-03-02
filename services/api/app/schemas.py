@@ -401,6 +401,7 @@ class AnalyticsEvent(BaseModel):
     route: str
     module: Literal["study", "practice", "analyze", "reports", "coach"]
     requestId: str | None = None
+    eventId: str | None = None
     payload: dict[str, Any] | None = None
 
 
@@ -411,3 +412,4 @@ class AnalyticsIngestRequest(BaseModel):
 class AnalyticsIngestResponse(BaseModel):
     requestId: str
     accepted: int
+    deduplicated: int = 0

@@ -1981,12 +1981,49 @@ def coach_create_plan_action(supabase: Client, payload: CoachCreatePlanRequest) 
     return CoachCreatePlanResponse(requestId=rid, plan=plan)
 
 
-def ingest_events(supabase: Client, events: list[dict[str, Any]]) -> int:
+def _event_fingerprint(event: dict[str, Any]) -> str:
+    if event.get("eventId"):
+        return f"event_id::{event['eventId']}"
+    canonical = {
+        "eventName": event.get("eventName"),
+        "eventTime": event["eventTime"].isoformat() if hasattr(event.get("eventTime"), "isoformat") else event.get("eventTime"),
+        "sessionId": event.get("sessionId"),
+        "route": event.get("route"),
+        "module": event.get("module"),
+        "payload": event.get("payload") or {},
+    }
+    digest = hashlib.sha1(json.dumps(canonical, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
+    return f"event_hash::{digest}"
+
+
+def ingest_events(supabase: Client, events: list[dict[str, Any]]) -> tuple[int, int]:
     if not events:
-        return 0
-    rows = []
-    for event in events:
-        rows.append(
+        return (0, 0)
+
+    fingerprints = [_event_fingerprint(event) for event in events]
+    existing: set[str] = set()
+    try:
+        rows = (
+            supabase.table("pg_mvp_events")
+            .select("event_fingerprint")
+            .in_("event_fingerprint", fingerprints)
+            .execute()
+            .data
+            or []
+        )
+        existing = {str(row.get("event_fingerprint")) for row in rows if row.get("event_fingerprint")}
+    except Exception:
+        existing = set()
+
+    rows_to_insert = []
+    deduplicated = 0
+    seen_in_batch: set[str] = set()
+    for event, fingerprint in zip(events, fingerprints):
+        if fingerprint in existing or fingerprint in seen_in_batch:
+            deduplicated += 1
+            continue
+        seen_in_batch.add(fingerprint)
+        rows_to_insert.append(
             {
                 "event_name": event["eventName"],
                 "event_time": event["eventTime"].isoformat() if hasattr(event["eventTime"], "isoformat") else event["eventTime"],
@@ -1995,11 +2032,33 @@ def ingest_events(supabase: Client, events: list[dict[str, Any]]) -> int:
                 "route": event["route"],
                 "module": event["module"],
                 "request_id": event.get("requestId"),
+                "event_id": event.get("eventId"),
+                "event_fingerprint": fingerprint,
                 "payload": event.get("payload") or {},
             },
         )
-    supabase.table("pg_mvp_events").insert(rows).execute()
-    return len(rows)
+
+    if rows_to_insert:
+        try:
+            supabase.table("pg_mvp_events").insert(rows_to_insert).execute()
+        except Exception:
+            fallback_rows = []
+            for row in rows_to_insert:
+                fallback_rows.append(
+                    {
+                        "event_name": row["event_name"],
+                        "event_time": row["event_time"],
+                        "session_id": row["session_id"],
+                        "user_id": row["user_id"],
+                        "route": row["route"],
+                        "module": row["module"],
+                        "request_id": row["request_id"],
+                        "payload": row["payload"],
+                    },
+                )
+            supabase.table("pg_mvp_events").insert(fallback_rows).execute()
+
+    return (len(rows_to_insert), deduplicated)
 
 
 def _build_chat_messages(payload: ZenChatRequest, content: str) -> list[dict[str, str]]:

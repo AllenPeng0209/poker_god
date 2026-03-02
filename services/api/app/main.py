@@ -427,5 +427,5 @@ def coach_create_plan(payload: CoachCreatePlanRequest) -> CoachCreatePlanRespons
 @app.post("/api/events", response_model=AnalyticsIngestResponse)
 def events_ingest(payload: AnalyticsIngestRequest) -> AnalyticsIngestResponse:
     supabase = get_supabase_client()
-    accepted = ingest_events(supabase, [event.model_dump(mode="python") for event in payload.events])
-    return AnalyticsIngestResponse(requestId=request_id(), accepted=accepted)
+    accepted, deduplicated = ingest_events(supabase, [event.model_dump(mode="python") for event in payload.events])
+    return AnalyticsIngestResponse(requestId=request_id(), accepted=accepted, deduplicated=deduplicated)
