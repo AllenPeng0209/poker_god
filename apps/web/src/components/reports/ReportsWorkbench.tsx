@@ -7,6 +7,7 @@ import { apiClient } from '@/lib/apiClient';
 import { trackEvent } from '@/lib/analytics';
 
 const WINDOW_OPTIONS: Array<7 | 30 | 90> = [7, 30, 90];
+const HOMEWORK_PERSONALIZATION_FLAG = process.env.NEXT_PUBLIC_ADMIN_HOMEWORK_PERSONALIZATION_V1 === '1';
 
 export function ReportsWorkbench() {
   const { t } = useI18n();
@@ -26,6 +27,7 @@ export function ReportsWorkbench() {
       relatedTag: string;
     }>
   >([]);
+  const [personalization, setPersonalization] = useState<Awaited<ReturnType<typeof apiClient.getAdminHomeworkPersonalization>> | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -37,6 +39,16 @@ export function ReportsWorkbench() {
         if (cancelled) return;
         setItems(response.items);
         setGeneratedAt(response.generatedAt);
+
+        if (HOMEWORK_PERSONALIZATION_FLAG) {
+          const personalizationResponse = await apiClient.getAdminHomeworkPersonalization();
+          if (!cancelled) {
+            setPersonalization(personalizationResponse);
+          }
+        } else {
+          setPersonalization(null);
+        }
+
         trackEvent('report_opened', {
           module: 'reports',
           requestId: response.requestId,
@@ -121,6 +133,32 @@ export function ReportsWorkbench() {
           </ul>
         ) : null}
       </article>
+
+      {HOMEWORK_PERSONALIZATION_FLAG && personalization ? (
+        <article className="mvp-card" data-testid="admin-homework-personalization-card">
+          <h2>Admin Homework Personalization Radar</h2>
+          <p className="mvp-muted">
+            Cache: {personalization.summary.cacheHit ? 'HIT' : 'MISS'} · age {personalization.summary.cacheAgeMs}ms/{personalization.summary.cacheTtlMs}ms
+          </p>
+          {personalization.summary.staleFallbackUsed ? (
+            <p className="module-error-text">
+              Stale fallback active ({personalization.summary.staleDataAgeMs}ms old){personalization.summary.refreshError ? `: ${personalization.summary.refreshError}` : ''}
+            </p>
+          ) : null}
+          <ul className="mvp-report-list">
+            {personalization.radar.slice(0, 3).map((item, index) => (
+              <li key={item.id}>
+                <div className="mvp-report-list__title">
+                  <strong>#{index + 1} {item.title}</strong>
+                  <span>Priority {item.priorityScore.toFixed(1)}</span>
+                </div>
+                <p>EV loss {item.avgEvLossBb100.toFixed(1)} bb/100 · sample {item.sampleSize}</p>
+                <p>{item.recommendedHomework}</p>
+              </li>
+            ))}
+          </ul>
+        </article>
+      ) : null}
 
       {error ? <p className="module-error-text">{error}</p> : null}
     </section>

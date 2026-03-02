@@ -30,6 +30,29 @@ type ApiErrorResponse = {
   requestId?: string;
 };
 
+export type AdminHomeworkPersonalizationResponse = {
+  requestId: string;
+  generatedAt: string;
+  summary: {
+    totalHands: number;
+    totalSignals: number;
+    cacheHit: boolean;
+    cacheAgeMs: number;
+    cacheTtlMs: number;
+    staleFallbackUsed: boolean;
+    staleDataAgeMs: number;
+    refreshError?: string | null;
+  };
+  radar: Array<{
+    id: string;
+    title: string;
+    sampleSize: number;
+    avgEvLossBb100: number;
+    recommendedHomework: string;
+    priorityScore: number;
+  }>;
+};
+
 const DEFAULT_API_BASE = 'http://localhost:3001';
 const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL ?? DEFAULT_API_BASE).replace(/\/+$/, '');
 const PUBLIC_API_KEY = (process.env.NEXT_PUBLIC_API_KEY ?? '').trim();
@@ -154,6 +177,10 @@ export const apiClient = {
 
   async getLeakReport(windowDays: 7 | 30 | 90): Promise<LeakReportResponse> {
     return requestJson<LeakReportResponse>(`/api/reports/leaks?windowDays=${windowDays}`);
+  },
+
+  async getAdminHomeworkPersonalization(): Promise<AdminHomeworkPersonalizationResponse> {
+    return requestJson<AdminHomeworkPersonalizationResponse>('/api/admin/coach/homework-personalization');
   },
 
   async zenChat(input: ZenChatRequest): Promise<ZenChatResponse> {

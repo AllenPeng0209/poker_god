@@ -318,6 +318,33 @@ class LeakReportResponse(BaseModel):
     items: list[LeakReportItem]
 
 
+class AdminHomeworkPersonalizationRadarItem(BaseModel):
+    id: str
+    title: str
+    sampleSize: int
+    avgEvLossBb100: float
+    recommendedHomework: str
+    priorityScore: float
+
+
+class AdminHomeworkPersonalizationSummary(BaseModel):
+    totalHands: int
+    totalSignals: int
+    cacheHit: bool = False
+    cacheAgeMs: int = 0
+    cacheTtlMs: int
+    staleFallbackUsed: bool = False
+    staleDataAgeMs: int = 0
+    refreshError: str | None = None
+
+
+class AdminHomeworkPersonalizationResponse(BaseModel):
+    requestId: str
+    generatedAt: str
+    summary: AdminHomeworkPersonalizationSummary
+    radar: list[AdminHomeworkPersonalizationRadarItem]
+
+
 CoachModule = Literal["study", "practice", "analyze", "reports"]
 CoachMode = Literal["Explain", "Fix", "Drill", "Plan"]
 CoachActionType = Literal["create_drill", "create_plan"]

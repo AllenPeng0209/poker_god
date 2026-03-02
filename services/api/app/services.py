@@ -6,6 +6,7 @@ import os
 import time
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
+from threading import Lock
 from typing import Any
 from uuid import uuid4
 
@@ -19,6 +20,9 @@ from .schemas import (
     AnalyzeUploadCreateRequest,
     AnalyzeUploadResponse,
     AnalyzedHand,
+    AdminHomeworkPersonalizationRadarItem,
+    AdminHomeworkPersonalizationResponse,
+    AdminHomeworkPersonalizationSummary,
     CoachActionSuggestion,
     CoachChatRequest,
     CoachChatResponse,
@@ -59,6 +63,10 @@ def request_id() -> str:
     return str(uuid4())
 
 
+def _now_monotonic_ms() -> int:
+    return int(time.monotonic() * 1000)
+
+
 def _safe_float(value: Any, default: float = 0.0) -> float:
     try:
         return float(value)
@@ -71,6 +79,148 @@ def _safe_int(value: Any, default: int = 0) -> int:
         return int(value)
     except (TypeError, ValueError):
         return default
+
+
+_HOMEWORK_PERSONALIZATION_CACHE_TTL_MS = 15_000
+_homework_personalization_cache_lock = Lock()
+_homework_personalization_cache_snapshot: dict[str, Any] | None = None
+_homework_personalization_cache_created_ms: int = 0
+
+
+def clear_homework_personalization_cache() -> None:
+    global _homework_personalization_cache_snapshot, _homework_personalization_cache_created_ms
+    with _homework_personalization_cache_lock:
+        _homework_personalization_cache_snapshot = None
+        _homework_personalization_cache_created_ms = 0
+
+
+def _compute_homework_personalization_snapshot(supabase: Client) -> dict[str, Any]:
+    hands_rows = (
+        supabase.table("pg_mvp_analyzed_hands")
+        .select("street,ev_loss_bb100,tags")
+        .order("played_at", desc=True)
+        .limit(800)
+        .execute()
+        .data
+        or []
+    )
+    grouped: dict[str, dict[str, float | int]] = defaultdict(lambda: {"sample_size": 0, "ev_total": 0.0})
+    for row in hands_rows:
+        street = str(row.get("street") or "preflop")
+        tags = [str(tag).strip() for tag in list(row.get("tags") or []) if str(tag).strip()]
+        ev_loss = _safe_float(row.get("ev_loss_bb100"))
+
+        group = grouped[street]
+        group["sample_size"] = _safe_int(group["sample_size"]) + 1
+        group["ev_total"] = _safe_float(group["ev_total"]) + ev_loss
+
+        for tag in tags:
+            tag_key = f"tag:{tag}"
+            tagged_group = grouped[tag_key]
+            tagged_group["sample_size"] = _safe_int(tagged_group["sample_size"]) + 1
+            tagged_group["ev_total"] = _safe_float(tagged_group["ev_total"]) + ev_loss
+
+    fallback_map = {
+        "preflop": "Preflop opening/defense homework pack",
+        "flop": "Flop c-bet and check-raise response homework",
+        "turn": "Turn barreling and bluff-catch homework",
+        "river": "River value/bluff balance homework",
+    }
+    tag_map = {
+        "tag:over_bluff": "Bluff discipline calibration homework",
+        "tag:under_bluff": "Bluff frequency expansion homework",
+        "tag:missed_value": "Thin value extraction homework",
+        "tag:over_fold": "Defense threshold homework",
+        "tag:size_mismatch": "Bet sizing structure homework",
+    }
+
+    radar: list[dict[str, Any]] = []
+    for key, aggregate in grouped.items():
+        sample_size = _safe_int(aggregate.get("sample_size"))
+        if sample_size <= 0:
+            continue
+        avg_loss = _safe_float(aggregate.get("ev_total")) / sample_size
+        if key.startswith("tag:"):
+            title = key.removeprefix("tag:").replace("_", " ").title()
+            homework = tag_map.get(key, "Targeted leak repair homework")
+        else:
+            title = key.title()
+            homework = fallback_map.get(key, "Core fundamentals reinforcement homework")
+
+        priority = round(avg_loss * (1.0 + min(sample_size, 200) / 200.0), 2)
+        radar.append(
+            {
+                "id": key,
+                "title": title,
+                "sampleSize": sample_size,
+                "avgEvLossBb100": round(avg_loss, 2),
+                "recommendedHomework": homework,
+                "priorityScore": priority,
+            },
+        )
+
+    radar_sorted = sorted(radar, key=lambda item: (item["priorityScore"], item["sampleSize"]), reverse=True)[:8]
+    total_signals = sum(_safe_int(item.get("sampleSize")) for item in radar_sorted)
+    return {
+        "generatedAt": now_iso(),
+        "summary": {
+            "totalHands": len(hands_rows),
+            "totalSignals": total_signals,
+        },
+        "radar": radar_sorted,
+    }
+
+
+def get_admin_homework_personalization(supabase: Client) -> AdminHomeworkPersonalizationResponse:
+    global _homework_personalization_cache_snapshot, _homework_personalization_cache_created_ms
+
+    now_ms = _now_monotonic_ms()
+    cache_hit = False
+    cache_age_ms = 0
+    stale_fallback_used = False
+    stale_data_age_ms = 0
+    refresh_error: str | None = None
+
+    with _homework_personalization_cache_lock:
+        if _homework_personalization_cache_snapshot is not None:
+            cache_age_ms = max(0, now_ms - _homework_personalization_cache_created_ms)
+            if cache_age_ms < _HOMEWORK_PERSONALIZATION_CACHE_TTL_MS:
+                snapshot = _homework_personalization_cache_snapshot
+                cache_hit = True
+            else:
+                snapshot = None
+        else:
+            snapshot = None
+
+        if snapshot is None:
+            try:
+                snapshot = _compute_homework_personalization_snapshot(supabase)
+                _homework_personalization_cache_snapshot = snapshot
+                _homework_personalization_cache_created_ms = now_ms
+                cache_age_ms = 0
+                cache_hit = False
+            except Exception as exc:
+                if _homework_personalization_cache_snapshot is None:
+                    raise
+                snapshot = _homework_personalization_cache_snapshot
+                stale_fallback_used = True
+                stale_data_age_ms = max(0, now_ms - _homework_personalization_cache_created_ms)
+                refresh_error = str(exc)
+
+    summary_payload = dict(snapshot.get("summary") or {})
+    summary_payload["cacheHit"] = cache_hit
+    summary_payload["cacheAgeMs"] = cache_age_ms
+    summary_payload["cacheTtlMs"] = _HOMEWORK_PERSONALIZATION_CACHE_TTL_MS
+    summary_payload["staleFallbackUsed"] = stale_fallback_used
+    summary_payload["staleDataAgeMs"] = stale_data_age_ms
+    summary_payload["refreshError"] = refresh_error
+
+    return AdminHomeworkPersonalizationResponse(
+        requestId=request_id(),
+        generatedAt=str(snapshot.get("generatedAt") or now_iso()),
+        summary=AdminHomeworkPersonalizationSummary.model_validate(summary_payload),
+        radar=[AdminHomeworkPersonalizationRadarItem.model_validate(item) for item in list(snapshot.get("radar") or [])],
+    )
 
 
 _STUDY_SPOT_SEED: list[dict[str, Any]] = [
